@@ -16,7 +16,7 @@ function App() {
   })
 
   return (
-    <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
+    <div data-testid="map-root" style={{ position: 'relative', width: '100vw', height: '100vh' }}>
       <Map
         mapStyle="https://tiles.openfreemap.org/styles/liberty"
         initialViewState={{

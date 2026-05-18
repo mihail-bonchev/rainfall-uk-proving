@@ -5,6 +5,9 @@ dist-ssr/
 .turbo/
 coverage/
 .coverage/
+.features-gen/
+playwright-report/
+test-results/
 
 # Environment
 .env
