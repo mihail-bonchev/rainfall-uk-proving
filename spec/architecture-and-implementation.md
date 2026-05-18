@@ -16,14 +16,18 @@
 
 **Project Name:** Rainfall Explorer – UK Environment Agency Rainfall Visualisation
 
-**Vision:** Build an intelligent, efficient web application that visualizes real-time and historical rainfall data from UK Environment Agency stations. The app prioritizes local caching to minimize API load, smooth map interactions, and mobile-first design.
+**Vision:** A beautiful, full-screen map application showing UK rainfall in real time and across historical time ranges — quality comparable to Windy/Ventusky, not DEFRA sample apps.
 
 **Target Users:** Environmental professionals, researchers, general public interested in UK rainfall patterns.
 
 **Scope:**
-- MVP: Frontend-only, client-side caching with IndexedDB
-- Phase 2 (Optional): Backend cache service to further reduce API load
-- Phase 3 (Future): WebSocket support for real-time updates, advanced analytics
+- Phase 1 (MVP): Frontend-only, live + 28-day historical, MapLibre zoom transitions, station panel
+- Phase 2: Flask backend pipeline for year-range historical data
+- Phase 3: Anomaly map (period vs Met Office 1991–2020 baseline averages)
+
+> **Note:** This document was updated in May 2026. The technology stack has changed
+> significantly from the original spec. See the Technology Stack section for the current
+> decisions and `spec/implementation-plan.md` for the story breakdown.
 
 ---
 
@@ -31,22 +35,30 @@
 
 ### Technology Stack
 
-#### Frontend (MVP Phase)
+#### Frontend
 - **Framework:** React 18+ with TypeScript
 - **Build Tool:** Vite
-- **Map Library:** Leaflet with React wrapper (`react-leaflet`)
-- **Data Management:** React Query (TanStack Query) for API calls + IndexedDB for persistence
-- **State Management:** React Context API (minimal state) + React Query
-- **Styling:** Tailwind CSS (minimal, modern design)
-- **Testing:** Vitest + React Testing Library
-- **Package Manager:** npm or pnpm
+- **Map Library:** **MapLibre GL JS + react-map-gl v7** (replaces Leaflet)
+  - WebGL rendering: 60fps, smooth zoom, native GeoJSON clustering
+  - Zoom-expression–driven layer transitions (no React re-renders)
+  - Free/MIT, first-class TypeScript types
+- **Tile Source:** **OpenFreeMap** (free vector tiles, no API key required)
+- **UI Components:** **shadcn/ui + Tailwind CSS**
+  - `Sheet` for slide-in station panel
+  - `DateRangePicker` for custom time ranges
+  - Zero runtime overhead (copy-paste components)
+- **Data Management:** **TanStack Query v5** + **IndexedDB (idb library)**
+- **Charts:** **Recharts** with shadcn Chart wrapper
+- **Colour Scale:** Met Office convention — blue→cyan→green→yellow→orange→red
+- **Testing:** Vitest + React Testing Library + MSW (API mocking)
+- **Package Manager:** npm
 
-#### Optional Backend (Phase 2)
-- **Runtime:** Node.js 18+
-- **Framework:** Express.js
-- **Caching:** Redis or in-memory cache
-- **Database:** Optional—SQLite for local deployments or PostgreSQL for scalable deployments
-- **Testing:** Jest + Supertest
+#### Backend (Phase 2 — Historical Data Pipeline)
+- **Runtime:** Python 3.11+
+- **Framework:** Flask (already implemented in `app/`)
+- **Scheduler:** APScheduler (daily archive download job)
+- **Database:** SQLite (daily totals per station — ~20MB for 2 years)
+- **Deployment:** Render or Railway
 
 #### DevOps & Deployment
 - **Frontend Hosting:** Vercel or Netlify
