@@ -20,6 +20,8 @@ This plan starts from that clean slate and does it properly.
 | Anomaly view | not planned | **Diverging blue↔brown** (wetter/drier than avg) | Required for "period vs historic averages" extra |
 | Time control UX | date picker | **Preset chip strip + expandable custom range** | Grafana/Datadog pattern – reduces clicks for common ranges |
 | State/data | React Query + IndexedDB | **TanStack Query v5 + IndexedDB (idb)** | Same pattern, updated deps |
+| Historical DB | SQLite (local file) | **Supabase PostgreSQL** | Persistent (no Railway ephemeral FS issues), free tier covers 2yr of daily aggregates, REST API lets frontend query directly without going through Flask |
+| Backend role | Persistent Flask server | **Railway Cron Job (Flask script)** | Write-path only — downloads archive CSV daily, processes, inserts to Supabase. No persistent server needed in Phase 2. |
 
 ---
 
@@ -34,6 +36,10 @@ This plan starts from that clean slate and does it properly.
 - Archive: daily CSVs at `/archive/readings-full-YYYY-MM-DD.csv`
   - Each file: all stations, all readings for that day
   - ~10 MB uncompressed per day — impractical to download on client for year-range views
+- **Area field:** `eaAreaName` (NOT `eaRegionName` — that field is deprecated). 14 areas.
+- **Area GeoJSON:** Official EA/Natural England boundary file, OGL v3, WGS84, ~10 MB
+  - Download: `https://environment.data.gov.uk/api/file/download?fileDataSetId=60ef0fbd-5f1d-45e6-a9a9-ce413441b801&fileName=Administrative_Boundaries_Environment_Agency_and_Natural_England_Public_Face_Areas.geojson.zip`
+  - Join key: `SHORT_NAME` on GeoJSON ↔ `eaAreaName` on station metadata
 
 ### Per-time-range coverage plan
 
@@ -51,13 +57,35 @@ This plan starts from that clean slate and does it properly.
 
 ---
 
+## EA Area Names (14 areas — `eaAreaName` field)
+
+| API value | Full name |
+|---|---|
+| Thames | Thames |
+| Herts and North London | Hertfordshire and North London |
+| Cumbria and Lancashire | Cumbria and Lancashire |
+| East Midlands | East Midlands |
+| Devon and Cornwall | Devon Cornwall and the Isles of Scilly |
+| Wessex | Wessex |
+| Kent S London and E Sussex | Kent South London and East Sussex |
+| Solent and South Downs | Solent and South Downs |
+| Lincs and Northants | Lincolnshire and Northamptonshire |
+| Yorkshire | Yorkshire |
+| Gtr Mancs Mersey and Ches | Greater Manchester Merseyside and Cheshire |
+| North East | North East |
+| East Anglia | East Anglia |
+| West Midlands | West Midlands |
+
+---
+
 ## Map Zoom Level Architecture
 
 Three visual layers driven purely by MapLibre style `interpolate`/`step` zoom expressions (no React re-renders):
 
 ```
 Zoom 5–6.5: National overview
-  └── Choropleth fill — one polygon per EA region, colour = average station reading
+  └── Choropleth fill — one polygon per EA area (14 areas), colour = average station reading
+  └── Join: GeoJSON SHORT_NAME ↔ station eaAreaName
   └── Fade out at zoom 6.5→7.5
 
 Zoom 7–10.5: Clustered stations
@@ -173,17 +201,35 @@ Zoom 11+: Individual stations
 
 ### Epic 7 — Long-Term Historical Backend (Phase 2)
 
-**Goal:** Year-range queries and multi-year historical data served from Flask backend.
+**Goal:** Year-range queries served from Supabase PostgreSQL, populated by a Railway Cron Job.
+
+**Architecture:**
+- Flask is a **write-path cron script only** — no persistent server
+- Railway Cron Job runs the script daily at 02:00 UTC
+- Frontend queries **Supabase REST API directly** for historical reads (no Flask proxy needed)
+
+**Supabase schema:**
+```sql
+CREATE TABLE daily_station_totals (
+  date        DATE NOT NULL,
+  station_ref TEXT NOT NULL,
+  area_name   TEXT,               -- eaAreaName
+  total_mm    REAL NOT NULL,
+  reading_count INTEGER NOT NULL,
+  PRIMARY KEY (date, station_ref)
+);
+CREATE INDEX ON daily_station_totals (date, area_name);
+```
 
 | # | Story | Acceptance criteria |
 |---|---|---|
-| 7.1 | Flask endpoint `GET /api/daily-totals?station=&from=&to=` | Returns pre-aggregated `{date, station_reference, total_mm, count}[]` from SQLite |
-| 7.2 | Flask endpoint `GET /api/regional-totals?region=&from=&to=` | Aggregates daily totals by region from SQLite |
-| 7.3 | `APScheduler` job — downloads yesterday's archive CSV daily at 02:00 UTC | New SQLite rows added each morning |
-| 7.4 | Backfill script — download and process last 2 years of archive CSVs | SQLite has 2 years of daily totals; runs once manually |
-| 7.5 | Frontend `useHistoricalData` hook — routes to backend for ranges > 28d | Hook transparently selects EA API or Flask backend based on date range |
-| 7.6 | "Last 3 months" and "Last year" presets added to time control bar | Both presets fetch from Flask backend, map/table update correctly |
-| 7.7 | Station detail panel chart extends to yearly view when backend available | LineChart shows weekly totals for year range |
+| 7.1 | Supabase project + `daily_station_totals` table created | Table exists; RLS policy allows anonymous read |
+| 7.2 | `backend/app/scripts/ingest_archive.py` — download archive CSV, process, upsert to Supabase | Running script locally inserts/updates rows in Supabase |
+| 7.3 | Backfill script — process last 2 years of archive CSVs in batch | Supabase has 2 years of daily totals (≈730k rows, < 100 MB) |
+| 7.4 | Railway Cron Job configured to run `ingest_archive.py` daily at 02:00 UTC | New rows appear in Supabase each morning |
+| 7.5 | Frontend `useHistoricalData` hook — queries Supabase JS client for ranges > 28d | Hook routes to Supabase for long ranges, EA API for short |
+| 7.6 | "Last 3 months" and "Last year" presets added to time control bar | Both presets query Supabase, map choropleth + table update correctly |
+| 7.7 | Station detail panel chart extends to yearly view | LineChart shows weekly totals aggregated from Supabase |
 
 ---
 
@@ -225,10 +271,25 @@ Zoom 11+: Individual stations
 
 ---
 
-## Open Questions
+## Confirmed Decisions
 
-1. **Historic averages data source**: Met Office publishes regional monthly series at https://www.metoffice.gov.uk/research/climate/maps-and-data/uk-and-regional-series — confirm this is adequate for the anomaly comparison or if a different source is preferred.
-2. **Backend hosting**: Render / Railway free tier is fine for development. For production with scheduled jobs, a paid tier (~$7/mo) may be needed. Any preference?
-3. **Domain**: Will this be deployed at a custom domain or Vercel/Netlify subdomain for now?
-4. **Backfill depth**: 2 years of archive data is ~20MB SQLite (daily totals only). Worth going back further (e.g., 5 years)?
-5. **EA Region polygons**: Exact GeoJSON for the 9 EA regions needs sourcing. Options: ONS Open Geography Portal, or derive from station coordinates. Confirm approach.
+| # | Decision |
+|---|---|
+| 1 | **Historic averages:** Met Office 1991–2020 regional monthly series |
+| 2 | **Backend hosting:** Railway (existing subscription, ~£5/mo) — Flask runs as a Cron Job, not a persistent server, so minimal credit usage |
+| 3 | **Historical DB:** Supabase PostgreSQL — free tier (500 MB, keeps active via daily cron inserts) |
+| 4 | **Backfill depth:** 2 years |
+| 5 | **EA boundaries:** Official GeoJSON sourced — see Data Constraints section above |
+| 6 | **Domain:** `rain.xelantis.com` — frontend on Vercel with custom domain |
+
+## Deployment Targets
+
+| Layer | Platform | Config |
+|---|---|---|
+| Frontend | Vercel | Custom domain `rain.xelantis.com`; env vars set in Vercel dashboard |
+| Archive cron job | Railway | Cron Job service running `python backend/app/scripts/ingest_archive.py` daily at 02:00 UTC |
+| Database | Supabase | PostgreSQL; anon key for frontend reads; service role key for cron writes |
+
+## Railway £5/month Note
+
+The Railway Hobby plan gives $5 of compute credits/month. A Cron Job that runs ~2 minutes daily uses roughly $0.01/month of compute — negligible on top of existing services. If the existing services are already near the $5 limit, consider upgrading to the Pro plan ($20/mo) which includes $5 of usage + no credit cap.

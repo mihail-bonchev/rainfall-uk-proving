@@ -27,6 +27,7 @@ See [spec/implementation-plan.md](spec/implementation-plan.md) for the full epic
 | State/data | TanStack Query v5 + IndexedDB (idb) | |
 | Time controls | Custom preset chips + shadcn DateRangePicker | |
 | Colour scale | Met Office blue→cyan→green→yellow→orange→red | MapLibre `step` expression |
+| Historical DB | Supabase PostgreSQL | Frontend queries via Supabase JS client; cron job writes |
 
 ### Backend (existing — Flask/Python)
 - `app/` — Flask app; station proxy, latest readings cache, aggregation service
@@ -146,8 +147,26 @@ Cluster `clusterProperties` aggregate `rainfall_sum` so colour stays meaningful 
 | Range | Source |
 |---|---|
 | 15m, 6h, 24h, 7d, 28d | EA API (direct from frontend) |
-| 3 months, 1 year | Flask backend + SQLite (Phase 2) |
+| 3 months, 1 year | Supabase PostgreSQL (via Supabase JS client, Phase 2) |
 | Period vs average | Met Office 1991–2020 baseline (Phase 3) |
+
+## EA Areas (14 — `eaAreaName` field, NOT deprecated `eaRegionName`)
+
+Thames, Herts and North London, Cumbria and Lancashire, East Midlands, Devon and Cornwall,
+Wessex, Kent S London and E Sussex, Solent and South Downs, Lincs and Northants,
+Yorkshire, Gtr Mancs Mersey and Ches, North East, East Anglia, West Midlands.
+
+Area boundary GeoJSON (OGL v3, WGS84): download from `environment.data.gov.uk`.
+Join key: `SHORT_NAME` on GeoJSON ↔ `eaAreaName` on station metadata.
+See `spec/implementation-plan.md` for full download URL.
+
+## Deployment
+
+| Layer | Platform | Notes |
+|---|---|---|
+| Frontend | Vercel | Domain: `rain.xelantis.com` |
+| Archive cron | Railway | Cron Job; runs `ingest_archive.py` daily at 02:00 UTC |
+| Database | Supabase | PostgreSQL; anon key for reads, service key for cron writes |
 
 ## Environment Variables
 
