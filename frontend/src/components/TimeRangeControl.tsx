@@ -1,5 +1,7 @@
+import type { DateRange } from 'react-day-picker'
 import type { TimeRange } from '../types/api'
 import { Button } from './ui/button'
+import { DateRangePicker } from './DateRangePicker'
 
 const PRESETS: { value: TimeRange; label: string }[] = [
   { value: '15m', label: '15m' },
@@ -7,15 +9,16 @@ const PRESETS: { value: TimeRange; label: string }[] = [
   { value: '24h', label: '24h' },
   { value: '7d', label: '7d' },
   { value: '28d', label: '28d' },
-  { value: 'custom', label: 'Custom' },
 ]
 
 interface Props {
   value: TimeRange
   onChange: (range: TimeRange) => void
+  customRange?: DateRange
+  onCustomRange?: (range: DateRange) => void
 }
 
-export function TimeRangeControl({ value, onChange }: Props) {
+export function TimeRangeControl({ value, onChange, customRange, onCustomRange }: Props) {
   return (
     <div
       data-testid="time-range-control"
@@ -40,6 +43,14 @@ export function TimeRangeControl({ value, onChange }: Props) {
           {preset.label}
         </Button>
       ))}
+      <DateRangePicker
+        value={value === 'custom' ? customRange : undefined}
+        isActive={value === 'custom'}
+        onChange={(range) => {
+          onChange('custom')
+          onCustomRange?.(range)
+        }}
+      />
     </div>
   )
 }

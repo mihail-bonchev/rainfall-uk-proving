@@ -1,10 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen } from '@testing-library/react'
+import { http, HttpResponse } from 'msw'
+import { server } from '../test/msw/server'
 import type { FeatureCollection } from 'geojson'
 import { EAAreasSource } from './EAAreasSource'
 import { computeAreaAverages } from '../utils/rainfallAggregation'
 import { renderWithProviders } from '../test/utils'
 import * as stationStore from '../services/db/stationStore'
+
+const EA_BASE = 'https://environment.data.gov.uk/flood-monitoring'
 
 vi.mock('react-map-gl/maplibre', () => ({
   Source: ({ id, type, children }: { id: string; type: string; children?: React.ReactNode }) => (
@@ -107,5 +111,39 @@ describe('EAAreasSource', () => {
     const outline = await screen.findByTestId('layer-ea-areas-outline')
     expect(fill).toHaveAttribute('data-layer-type', 'fill')
     expect(outline).toHaveAttribute('data-layer-type', 'line')
+  })
+
+  it('renders source for timeRange=7d using period data', async () => {
+    vi.spyOn(stationStore, 'getStations').mockResolvedValue(MOCK_STATIONS)
+    global.fetch = vi.fn(() =>
+      Promise.resolve(new Response(JSON.stringify(MOCK_AREAS_GEOJSON), { status: 200 })),
+    ) as unknown as typeof fetch
+    server.use(
+      http.get(`${EA_BASE}/data/readings`, () =>
+        HttpResponse.json({
+          items: [
+            { stationReference: 'E0001', value: 5.0, dateTime: '2025-11-21T14:00:00Z', measure: 'test' },
+          ],
+        }),
+      ),
+    )
+
+    renderWithProviders(<EAAreasSource timeRange="7d" />)
+    const source = await screen.findByTestId('source-ea-areas')
+    expect(source).toBeInTheDocument()
+  })
+
+  it('renders source for timeRange=28d without error', async () => {
+    vi.spyOn(stationStore, 'getStations').mockResolvedValue(MOCK_STATIONS)
+    global.fetch = vi.fn(() =>
+      Promise.resolve(new Response(JSON.stringify(MOCK_AREAS_GEOJSON), { status: 200 })),
+    ) as unknown as typeof fetch
+    server.use(
+      http.get(`${EA_BASE}/data/readings`, () => HttpResponse.json({ items: [] })),
+    )
+
+    renderWithProviders(<EAAreasSource timeRange="28d" />)
+    const source = await screen.findByTestId('source-ea-areas')
+    expect(source).toBeInTheDocument()
   })
 })

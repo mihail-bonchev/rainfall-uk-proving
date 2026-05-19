@@ -10,6 +10,10 @@ function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
+export function getDateRangeForCustom(from: Date, to: Date): DateRangeParams {
+  return { startdate: toDateStr(from), enddate: toDateStr(to) }
+}
+
 export function getDateRangeForPreset(preset: TimeRange): DateRangeParams {
   const now = new Date()
   switch (preset) {

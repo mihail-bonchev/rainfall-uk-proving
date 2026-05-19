@@ -1,17 +1,22 @@
 import { useQuery } from '@tanstack/react-query'
+import type { DateRange } from 'react-day-picker'
 import type { TimeRange } from '../types/api'
 import { fetchLatestReadings, fetchReadings } from '../services/api/readingService'
 import { upsertReadings } from '../services/db/readingStore'
-import { getDateRangeForPreset } from '../utils/dateUtils'
+import { getDateRangeForPreset, getDateRangeForCustom } from '../utils/dateUtils'
 
-export function useLatestReadings(timeRange: TimeRange) {
+export function useLatestReadings(timeRange: TimeRange, customRange?: DateRange) {
   return useQuery<Map<string, number>>({
-    queryKey: ['readings', timeRange],
+    queryKey: ['readings', timeRange, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
     queryFn: async () => {
-      const readings =
-        timeRange === '15m'
-          ? await fetchLatestReadings()
-          : await fetchReadings(getDateRangeForPreset(timeRange))
+      let readings
+      if (timeRange === 'custom' && customRange?.from && customRange?.to) {
+        readings = await fetchReadings(getDateRangeForCustom(customRange.from, customRange.to))
+      } else if (timeRange === '15m') {
+        readings = await fetchLatestReadings()
+      } else {
+        readings = await fetchReadings(getDateRangeForPreset(timeRange))
+      }
 
       await upsertReadings(readings)
 
@@ -21,7 +26,8 @@ export function useLatestReadings(timeRange: TimeRange) {
       }
       return readingsMap
     },
-    refetchInterval: 30_000,
+    enabled: timeRange !== 'custom' || !!(customRange?.from && customRange?.to),
+    refetchInterval: timeRange === 'custom' ? false : 30_000,
     refetchIntervalInBackground: false,
     staleTime: 0,
   })
