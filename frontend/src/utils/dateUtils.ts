@@ -1,9 +1,9 @@
 import type { TimeRange } from '../types/api'
 
 export interface DateRangeParams {
-  since?: string
-  startdate?: string
-  enddate?: string
+  startdate: string
+  enddate: string
+  fromMs?: number // client-side lower bound for filtering
 }
 
 function toDateStr(d: Date): string {
@@ -17,24 +17,32 @@ export function getDateRangeForCustom(from: Date, to: Date): DateRangeParams {
 export function getDateRangeForPreset(preset: TimeRange): DateRangeParams {
   const now = new Date()
   switch (preset) {
-    case '15m':
-      return { since: new Date(now.getTime() - 15 * 60 * 1000).toISOString() }
-    case '6h':
-      return { since: new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString() }
-    case '24h':
-      return { since: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString() }
+    case '15m': {
+      const from = new Date(now.getTime() - 15 * 60 * 1000)
+      return { startdate: toDateStr(from), enddate: toDateStr(now), fromMs: from.getTime() }
+    }
+    case '6h': {
+      const from = new Date(now.getTime() - 6 * 60 * 60 * 1000)
+      return { startdate: toDateStr(from), enddate: toDateStr(now), fromMs: from.getTime() }
+    }
+    case '24h': {
+      const from = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+      return { startdate: toDateStr(from), enddate: toDateStr(now), fromMs: from.getTime() }
+    }
     case '7d': {
-      const start = new Date(now)
-      start.setDate(start.getDate() - 7)
-      return { startdate: toDateStr(start), enddate: toDateStr(now) }
+      const from = new Date(now)
+      from.setDate(from.getDate() - 7)
+      return { startdate: toDateStr(from), enddate: toDateStr(now) }
     }
     case '28d': {
-      const start = new Date(now)
-      start.setDate(start.getDate() - 28)
-      return { startdate: toDateStr(start), enddate: toDateStr(now) }
+      const from = new Date(now)
+      from.setDate(from.getDate() - 28)
+      return { startdate: toDateStr(from), enddate: toDateStr(now) }
     }
-    default:
-      return { since: new Date(now.getTime() - 15 * 60 * 1000).toISOString() }
+    default: {
+      const from = new Date(now.getTime() - 15 * 60 * 1000)
+      return { startdate: toDateStr(from), enddate: toDateStr(now), fromMs: from.getTime() }
+    }
   }
 }
 

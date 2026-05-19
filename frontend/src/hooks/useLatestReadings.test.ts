@@ -45,7 +45,7 @@ describe('useLatestReadings', () => {
       ),
     )
 
-    const { result } = renderHook(() => useLatestReadings('6h'), { wrapper: makeWrapper() })
+    const { result } = renderHook(() => useLatestReadings('7d'), { wrapper: makeWrapper() })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 

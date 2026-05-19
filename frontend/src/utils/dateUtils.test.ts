@@ -13,27 +13,32 @@ afterEach(() => {
 })
 
 describe('getDateRangeForPreset', () => {
-  it('15m: returns since = 15 minutes ago as ISO string', () => {
+  it('15m: returns startdate/enddate spanning 15 minutes ago and a fromMs cutoff', () => {
     const result = getDateRangeForPreset('15m')
-    expect(result.since).toBe('2025-11-21T14:45:00.000Z')
-    expect(result.startdate).toBeUndefined()
+    expect(result.startdate).toBe('2025-11-21')
+    expect(result.enddate).toBe('2025-11-21')
+    expect(result.fromMs).toBe(new Date('2025-11-21T14:45:00.000Z').getTime())
   })
 
-  it('6h: returns since = 6 hours ago', () => {
+  it('6h: returns startdate/enddate spanning 6 hours ago and a fromMs cutoff', () => {
     const result = getDateRangeForPreset('6h')
-    expect(result.since).toBe('2025-11-21T09:00:00.000Z')
+    expect(result.startdate).toBe('2025-11-21')
+    expect(result.enddate).toBe('2025-11-21')
+    expect(result.fromMs).toBe(new Date('2025-11-21T09:00:00.000Z').getTime())
   })
 
-  it('24h: returns since = 24 hours ago', () => {
+  it('24h: returns startdate/enddate spanning 24 hours ago and a fromMs cutoff', () => {
     const result = getDateRangeForPreset('24h')
-    expect(result.since).toBe('2025-11-20T15:00:00.000Z')
+    expect(result.startdate).toBe('2025-11-20')
+    expect(result.enddate).toBe('2025-11-21')
+    expect(result.fromMs).toBe(new Date('2025-11-20T15:00:00.000Z').getTime())
   })
 
-  it('7d: returns startdate 7 days ago and enddate today', () => {
+  it('7d: returns startdate 7 days ago and enddate today, no fromMs', () => {
     const result = getDateRangeForPreset('7d')
     expect(result.startdate).toBe('2025-11-14')
     expect(result.enddate).toBe('2025-11-21')
-    expect(result.since).toBeUndefined()
+    expect(result.fromMs).toBeUndefined()
   })
 
   it('28d: returns startdate 28 days ago and enddate today', () => {
@@ -42,9 +47,11 @@ describe('getDateRangeForPreset', () => {
     expect(result.enddate).toBe('2025-11-21')
   })
 
-  it('custom: falls back to 15m range', () => {
+  it('custom: falls back to 15m range with startdate/enddate', () => {
     const result = getDateRangeForPreset('custom')
-    expect(result.since).toBe('2025-11-21T14:45:00.000Z')
+    expect(result.startdate).toBe('2025-11-21')
+    expect(result.enddate).toBe('2025-11-21')
+    expect(result.fromMs).toBeDefined()
   })
 })
 

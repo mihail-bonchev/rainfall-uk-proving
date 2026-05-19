@@ -50,19 +50,19 @@ export async function fetchReadings(params: DateRangeParams): Promise<Reading[]>
   const url = new URL(`${EA_BASE}/data/readings`)
   url.searchParams.set('parameter', 'rainfall')
   url.searchParams.set('_limit', '10000')
-  if (params.since) {
-    url.searchParams.set('since', params.since)
-  } else if (params.startdate) {
-    url.searchParams.set('startdate', params.startdate)
-    url.searchParams.set('enddate', params.enddate!)
-  }
+  url.searchParams.set('startdate', params.startdate)
+  url.searchParams.set('enddate', params.enddate)
   const res = await fetch(url.toString())
   if (!res.ok) {
     throw new ReadingFetchError(res.status, `EA API error: ${res.status} ${res.statusText}`)
   }
   const data = (await res.json()) as EAReadingsResponse
-  return data.items.flatMap((r) => {
+  const readings = data.items.flatMap((r) => {
     const n = normalise(r)
     return n ? [n] : []
   })
+  if (params.fromMs !== undefined) {
+    return readings.filter((r) => new Date(r.dateTime).getTime() >= params.fromMs!)
+  }
+  return readings
 }
