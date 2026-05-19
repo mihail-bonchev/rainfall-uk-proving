@@ -56,21 +56,63 @@ export async function fetchLatestReadings(): Promise<Reading[]> {
   })
 }
 
-export async function fetchReadings(params: DateRangeParams): Promise<Reading[]> {
+// Fetch one day's readings (up to 10k). A day has ~96k readings total (1000 stations × 96 intervals)
+// so 10k covers the first ~2.5 hours of that calendar day across all active stations.
+async function fetchDayReadings(date: string): Promise<Reading[]> {
   const url = new URL(`${EA_BASE}/data/readings`)
   url.searchParams.set('parameter', 'rainfall')
   url.searchParams.set('_limit', '10000')
-  url.searchParams.set('startdate', params.startdate)
-  url.searchParams.set('enddate', params.enddate)
+  url.searchParams.set('startdate', date)
+  url.searchParams.set('enddate', date)
   const res = await fetch(url.toString())
-  if (!res.ok) {
-    throw new ReadingFetchError(res.status, `EA API error: ${res.status} ${res.statusText}`)
-  }
+  if (!res.ok) throw new ReadingFetchError(res.status, `EA API error: ${res.status} ${res.statusText}`)
   const data = (await res.json()) as EAReadingsResponse
-  const readings = data.items.flatMap((r) => {
+  return data.items.flatMap((r) => {
     const n = normalise(r)
     return n ? [n] : []
   })
+}
+
+// Enumerate calendar dates in the range [startdate, enddate].
+function calendarDates(startdate: string, enddate: string): string[] {
+  const dates: string[] = []
+  const end = new Date(enddate + 'T12:00:00Z')
+  for (const d = new Date(startdate + 'T12:00:00Z'); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    dates.push(d.toISOString().slice(0, 10))
+  }
+  return dates
+}
+
+export async function fetchReadings(params: DateRangeParams): Promise<Reading[]> {
+  const dates = calendarDates(params.startdate, params.enddate)
+
+  let readings: Reading[]
+
+  if (dates.length <= 1) {
+    // Single day — one call.
+    const url = new URL(`${EA_BASE}/data/readings`)
+    url.searchParams.set('parameter', 'rainfall')
+    url.searchParams.set('_limit', '10000')
+    url.searchParams.set('startdate', params.startdate)
+    url.searchParams.set('enddate', params.enddate)
+    const res = await fetch(url.toString())
+    if (!res.ok) throw new ReadingFetchError(res.status, `EA API error: ${res.status} ${res.statusText}`)
+    const data = (await res.json()) as EAReadingsResponse
+    readings = data.items.flatMap((r) => {
+      const n = normalise(r)
+      return n ? [n] : []
+    })
+  } else {
+    // Multi-day: one parallel call per calendar day (capped at 28 calls).
+    // Each day's 10k gives ~1000 stations × ~10 readings from the early morning window.
+    // Together they cover all active stations across the full period.
+    const sampled = dates.length <= 28
+      ? dates
+      : dates.filter((_, i) => i % Math.ceil(dates.length / 28) === 0)
+    const pages = await Promise.all(sampled.map(fetchDayReadings))
+    readings = pages.flat()
+  }
+
   if (params.fromMs !== undefined) {
     return readings.filter((r) => new Date(r.dateTime).getTime() >= params.fromMs!)
   }

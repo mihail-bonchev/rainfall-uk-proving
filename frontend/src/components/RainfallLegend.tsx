@@ -1,14 +1,15 @@
 import type { TimeRange } from '../types/api'
 
-const GRADIENT_STOPS = [
-  { pct: 0,   colour: 'rgba(0,0,0,0)',     label: 'Dry / no data' },
-  { pct: 20,  colour: '#a8d5f5',           label: 'Light' },
-  { pct: 40,  colour: '#50c8f4',           label: '' },
-  { pct: 55,  colour: '#00a651',           label: 'Moderate' },
-  { pct: 70,  colour: '#fff200',           label: '' },
-  { pct: 82,  colour: '#ff7f00',           label: 'Heavy' },
-  { pct: 100, colour: '#e8001d',           label: 'Intense' },
-]
+// "Heavy rain" thresholds per period — match PERIOD_MAX_MM in StationsSource.
+// These are the values that saturate the heatmap to full red.
+const PERIOD_MAX_MM: Record<TimeRange, number> = {
+  '15m':    2,
+  '6h':     4,
+  '24h':    6,
+  '7d':     10,
+  '28d':    25,
+  'custom': 8,
+}
 
 const PERIOD_LABELS: Record<TimeRange, string> = {
   '15m': 'Rainfall — last 15 min',
@@ -19,32 +20,49 @@ const PERIOD_LABELS: Record<TimeRange, string> = {
   'custom': 'Rainfall — custom period',
 }
 
+function fmt(n: number): string {
+  if (n >= 100) return `${Math.round(n)} mm`
+  if (n >= 10) return `${Math.round(n)} mm`
+  return `${parseFloat(n.toPrecision(2))} mm`
+}
+
 interface Props {
   timeRange: TimeRange
 }
 
 export function RainfallLegend({ timeRange }: Props) {
-  const gradient = `linear-gradient(to top, ${GRADIENT_STOPS.map((s) => `${s.colour} ${s.pct}%`).join(', ')})`
+  const maxMm = PERIOD_MAX_MM[timeRange]
+  // 6 evenly-spaced breakpoints from max down to near-zero
+  const breakpoints = [1, 0.8, 0.65, 0.5, 0.35, 0.2].map((f) => maxMm * f)
+
+  const gradient = `linear-gradient(to top,
+    rgba(168,213,245,0.15) 0%,
+    #a8d5f5 18%,
+    #50c8f4 32%,
+    #00a651 48%,
+    #fff200 63%,
+    #ff7f00 78%,
+    #e8001d 100%
+  )`
 
   return (
     <div
       style={{ position: 'absolute', bottom: 32, left: 16, zIndex: 10 }}
       className="bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2.5 shadow-lg pointer-events-none select-none text-white"
     >
-      <p className="text-[11px] font-semibold mb-2 tracking-wide uppercase opacity-80">
+      <p className="text-[10px] font-semibold mb-2 tracking-wide uppercase opacity-70">
         {PERIOD_LABELS[timeRange]}
       </p>
-      <div className="flex items-stretch gap-2">
+      <div className="flex items-stretch gap-2.5">
         <div
-          className="w-3 rounded-sm"
-          style={{ background: gradient, minHeight: 90 }}
+          className="w-3 rounded-sm flex-shrink-0"
+          style={{ background: gradient, minHeight: 110 }}
         />
-        <div className="flex flex-col justify-between text-[10px] opacity-90">
-          <span>Intense</span>
-          <span>Heavy</span>
-          <span>Moderate</span>
-          <span>Light</span>
-          <span className="opacity-60">Dry</span>
+        <div className="flex flex-col justify-between text-[10px] leading-none">
+          {breakpoints.map((mm, i) => (
+            <span key={i} className={i === 0 ? 'opacity-90' : 'opacity-75'}>{fmt(mm)}</span>
+          ))}
+          <span className="opacity-40">Dry</span>
         </div>
       </div>
     </div>
