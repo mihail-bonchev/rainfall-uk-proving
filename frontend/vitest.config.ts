@@ -12,7 +12,17 @@ export default mergeConfig(
       coverage: {
         provider: 'v8',
         reporter: ['text', 'html', 'lcov'],
-        exclude: ['node_modules/', 'src/test/', 'src/main.tsx', '**/*.d.ts', 'e2e/'],
+        include: ['src/**/*.{ts,tsx}'],
+        exclude: [
+          'node_modules/',
+          'src/test/**',
+          'src/main.tsx',
+          'src/types/**',
+          '**/*.d.ts',
+          'e2e/**',
+          '**/*.config.{js,ts}',
+          '**/dist/**',
+        ],
         thresholds: {
           statements: 80,
           branches: 80,

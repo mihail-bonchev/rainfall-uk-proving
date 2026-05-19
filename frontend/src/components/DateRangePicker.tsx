@@ -4,6 +4,7 @@ import type { DateRange } from 'react-day-picker'
 import { Calendar } from './ui/calendar'
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover'
 import { Button } from './ui/button'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 const MAX_DAYS = 28
 
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function DateRangePicker({ value, onChange, triggerLabel, isActive }: Props) {
+  const isMobile = useIsMobile()
   const [pending, setPending] = useState<DateRange | undefined>(value)
   const [open, setOpen] = useState(false)
 
@@ -64,7 +66,7 @@ export function DateRangePicker({ value, onChange, triggerLabel, isActive }: Pro
           mode="range"
           selected={pending}
           onSelect={setPending}
-          numberOfMonths={2}
+          numberOfMonths={isMobile ? 1 : 2}
           disabled={{ after: new Date() }}
         />
         <div className="flex flex-col gap-2 px-4 pb-4">

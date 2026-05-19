@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { TimeRangeControl } from './TimeRangeControl'
 
 describe('TimeRangeControl', () => {
@@ -26,5 +26,13 @@ describe('TimeRangeControl', () => {
   it('has data-testid="time-range-control"', () => {
     render(<TimeRangeControl value="15m" onChange={vi.fn()} />)
     expect(screen.getByTestId('time-range-control')).toBeInTheDocument()
+  })
+
+  it('clicking Custom opens the date range picker popover', async () => {
+    render(<TimeRangeControl value="15m" onChange={vi.fn()} />)
+    fireEvent.click(screen.getByTestId('custom-range-trigger'))
+    await waitFor(() =>
+      expect(screen.getByTestId('custom-range-popover')).toBeInTheDocument()
+    )
   })
 })

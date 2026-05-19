@@ -126,7 +126,8 @@ export function RegionalSummaryPanel({ open, onClose, timeRange, customRange, on
 
           {!isLoading && !isError && (
             <>
-              <table data-testid="regional-table" className="w-full text-sm border-collapse">
+              <div className="overflow-x-auto -mx-4 px-4">
+              <table data-testid="regional-table" className="w-full text-sm border-collapse min-w-[420px]">
                 <thead>
                   <tr className="border-b">
                     <SortHeader label="Area" sortKey="areaName" currentKey={sortKey} dir={sortDir} onSort={handleSort} />
@@ -166,6 +167,7 @@ export function RegionalSummaryPanel({ open, onClose, timeRange, customRange, on
                   )}
                 </tbody>
               </table>
+              </div>
 
               {onDownloadCsv && areas && areas.length > 0 && (
                 <div className="mt-4">

@@ -1,5 +1,7 @@
 # Rainfall Explorer MVP
 
+[![CI](https://github.com/mihail-bonchev/rainfall-uk-proving/actions/workflows/ci.yml/badge.svg)](https://github.com/mihail-bonchev/rainfall-uk-proving/actions/workflows/ci.yml)
+
 A modern, efficient web application that visualizes real-time and historical rainfall data from UK Environment Agency stations.
 
 ## Features
@@ -99,12 +101,24 @@ src/
 
 ## Deployment
 
-### Frontend (Vercel/Netlify)
+### Frontend (Vercel)
 
-```bash
-npm run build
-# Deploy the dist/ folder
-```
+The frontend is deployed to Vercel at `https://rain.xelantis.com`. `frontend/vercel.json` configures the build:
+
+| Setting | Value |
+|---|---|
+| Root directory | `frontend` |
+| Build command | `npm run build` |
+| Output directory | `dist` |
+| Install command | `npm ci` |
+
+**Setup steps:**
+1. Import the GitHub repo in the Vercel dashboard, set root directory to `frontend`.
+2. Add environment variables in the Vercel dashboard: `VITE_API_BASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+3. Add a custom domain `rain.xelantis.com` and point a CNAME record `rain` → `cname.vercel-dns.com` in xelantis.com DNS.
+4. Vercel issues the HTTPS certificate automatically.
+
+Auto-deploy on `main` push is enabled by default when connected to GitHub.
 
 ### Environment Variables
 See `.env.example` for all available configuration options.
