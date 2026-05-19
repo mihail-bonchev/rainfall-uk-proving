@@ -1,20 +1,8 @@
 import 'maplibre-gl/dist/maplibre-gl.css'
 import Map from 'react-map-gl/maplibre'
-import { useQuery } from '@tanstack/react-query'
+import { StationsSource } from './components/StationsSource'
 
 function App() {
-  useQuery({
-    queryKey: ['ea-station-count'],
-    queryFn: async () => {
-      const res = await fetch(
-        'https://environment.data.gov.uk/flood-monitoring/id/stations?parameter=rainfall&_count=1',
-      )
-      const data = await res.json()
-      return data.meta?.totalCount ?? 0
-    },
-    staleTime: 300_000,
-  })
-
   return (
     <div data-testid="map-root" style={{ position: 'relative', width: '100vw', height: '100vh' }}>
       <Map
@@ -28,7 +16,9 @@ function App() {
         scrollZoom
         dragPan
         touchZoomRotate
-      />
+      >
+        <StationsSource />
+      </Map>
     </div>
   )
 }

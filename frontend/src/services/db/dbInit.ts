@@ -1,14 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
-
-interface Station {
-  id: string
-  label: string
-  lat: number
-  long: number
-  eaAreaName: string
-  region: string
-  gridReference: string
-}
+import type { Station } from '../api/stationService'
 
 interface Reading {
   stationRef: string
@@ -43,6 +34,20 @@ interface RainfallDB extends DBSchema {
 }
 
 let dbPromise: Promise<IDBPDatabase<RainfallDB>> | null = null
+
+export async function _resetDbForTests(): Promise<void> {
+  if (dbPromise) {
+    const db = await dbPromise
+    db.close()
+    dbPromise = null
+  }
+  await new Promise<void>((resolve, reject) => {
+    const req = indexedDB.deleteDatabase('rainfall-explorer')
+    req.onsuccess = () => resolve()
+    req.onerror = () => reject(req.error)
+    req.onblocked = () => resolve()
+  })
+}
 
 export function getDb(): Promise<IDBPDatabase<RainfallDB>> {
   if (!dbPromise) {
