@@ -220,8 +220,8 @@ export function StationDetailPanel({ stationId, timeRange, onClose, onViewAreaSu
                 unit=" mm"
               />
               <Tooltip
-                formatter={(v: number) => [`${v.toFixed(1)} mm`, 'Rainfall']}
-                labelFormatter={(t: string) => new Date(t).toLocaleString()}
+                formatter={(v: unknown) => [`${(v as number).toFixed(1)} mm`, 'Rainfall']}
+                labelFormatter={(t: unknown) => new Date(t as string).toLocaleString()}
               />
               <Line
                 type="monotone"

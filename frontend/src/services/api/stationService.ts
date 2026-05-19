@@ -11,11 +11,10 @@ export interface Station {
 }
 
 export class StationFetchError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string,
-  ) {
+  readonly status: number
+  constructor(status: number, message: string) {
     super(message)
+    this.status = status
     this.name = 'StationFetchError'
   }
 }

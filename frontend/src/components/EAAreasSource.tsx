@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Source, Layer, type LayerProps } from 'react-map-gl/maplibre'
+import type { ExpressionSpecification } from 'maplibre-gl'
 import { useQuery } from '@tanstack/react-query'
 import type { FeatureCollection, Feature, Geometry } from 'geojson'
 import type { DateRange } from 'react-day-picker'
@@ -16,7 +17,7 @@ const DAY_COUNTS: Partial<Record<TimeRange, number>> = {
   '28d': 28,
 }
 
-function getColourScale(timeRange: TimeRange): LayerProps['paint'][string] {
+function getColourScale(timeRange: TimeRange): ExpressionSpecification {
   const days = DAY_COUNTS[timeRange] ?? 1
   const [b1, b2, b3, b4, b5, b6, b7] = [0.1, 0.5, 2, 5, 10, 20, 50].map((v) => v * days)
   return [
@@ -39,7 +40,7 @@ async function fetchAreasGeoJSON(url: string): Promise<FeatureCollection> {
   return res.json() as Promise<FeatureCollection>
 }
 
-const ZOOM_FADE: LayerProps['paint'][string] = ['interpolate', ['linear'], ['zoom'], 7, 1, 7.5, 0]
+const ZOOM_FADE: ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], 7, 1, 7.5, 0]
 
 function makeFillLayer(timeRange: TimeRange): LayerProps {
   return {

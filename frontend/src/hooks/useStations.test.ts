@@ -65,7 +65,7 @@ describe('toGeoJSON', () => {
 
   it('coordinates are [longitude, latitude]', () => {
     const fc = toGeoJSON([MOCK_STATIONS[1]])
-    const [lng, lat] = fc.features[0].geometry.coordinates as number[]
+    const [lng, lat] = (fc.features[0].geometry as import('geojson').Point).coordinates as number[]
     expect(lng).toBe(MOCK_STATIONS[1].long)
     expect(lat).toBe(MOCK_STATIONS[1].lat)
   })

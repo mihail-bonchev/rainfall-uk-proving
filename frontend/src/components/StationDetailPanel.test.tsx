@@ -58,6 +58,8 @@ describe('StationDetailPanel', () => {
       onchange: null,
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
       dispatchEvent: vi.fn(),
     }))
     renderWithProviders(<StationDetailPanel stationId="ABC123" timeRange={DEFAULT_TIME_RANGE} onClose={vi.fn()} />)

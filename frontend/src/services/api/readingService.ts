@@ -15,11 +15,10 @@ interface EAReadingsResponse {
 }
 
 export class ReadingFetchError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string,
-  ) {
+  readonly status: number
+  constructor(status: number, message: string) {
     super(message)
+    this.status = status
     this.name = 'ReadingFetchError'
   }
 }

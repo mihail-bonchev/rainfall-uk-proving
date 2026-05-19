@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Source, Layer, Popup, useMap, type LayerProps } from 'react-map-gl/maplibre'
+import type { ExpressionSpecification } from 'maplibre-gl'
 import type { GeoJSONSource, MapLayerMouseEvent } from 'maplibre-gl'
 import type { Point } from 'geojson'
 import { useStations, toGeoJSON } from '../hooks/useStations'
@@ -16,7 +17,7 @@ const RAINFALL_COLOUR_SCALE = [
   10,  '#ff7f00', // orange
   20,  '#e8001d', // red
   50,  '#9b0026', // dark red/purple
-] as LayerProps['paint'][string]
+] as ExpressionSpecification
 
 // Cluster colour: same scale applied to rainfall_sum / point_count
 const CLUSTER_COLOUR_SCALE = [
@@ -30,10 +31,10 @@ const CLUSTER_COLOUR_SCALE = [
   10,  '#ff7f00',
   20,  '#e8001d',
   50,  '#9b0026',
-] as LayerProps['paint'][string]
+] as ExpressionSpecification
 
 // Cluster layers fade in from zoom 6.5→7.5, hold until 10, fade out 10→11
-const CLUSTER_OPACITY: LayerProps['paint'][string] = [
+const CLUSTER_OPACITY: ExpressionSpecification = [
   'interpolate', ['linear'], ['zoom'],
   6.5, 0, 7.5, 1, 10, 1, 11, 0,
 ]

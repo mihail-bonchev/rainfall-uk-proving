@@ -4,7 +4,6 @@ import { server } from '../test/msw/server'
 import { renderWithProviders } from '../test/utils'
 import * as stationStore from '../services/db/stationStore'
 import { RegionalSummaryPanel } from './RegionalSummaryPanel'
-import type { AreaSummary } from '../services/aggregation/regionalAggregator'
 import type { Station } from '../services/api/stationService'
 
 const EA_BASE = 'https://environment.data.gov.uk/flood-monitoring'
