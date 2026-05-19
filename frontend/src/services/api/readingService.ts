@@ -4,7 +4,7 @@ import type { DateRangeParams } from '../../utils/dateUtils'
 const EA_BASE = 'https://environment.data.gov.uk/flood-monitoring'
 
 interface EAReading {
-  stationReference: string
+  stationReference?: string
   value: number | null
   dateTime: string
   measure: string
@@ -23,10 +23,20 @@ export class ReadingFetchError extends Error {
   }
 }
 
+// The bulk /data/readings endpoint omits stationReference — extract it from the measure URL.
+// Measure URL format: .../id/measures/{stationRef}-rainfall-{rest}
+function stationRefFromMeasure(measure: string): string {
+  const id = measure.split('/').pop() ?? ''
+  const idx = id.indexOf('-rainfall-')
+  return idx > 0 ? id.slice(0, idx) : id.split('-')[0]
+}
+
 function normalise(raw: EAReading): Reading | null {
   if (raw.value == null || raw.value < 0) return null
+  const stationRef = raw.stationReference ?? stationRefFromMeasure(raw.measure)
+  if (!stationRef) return null
   return {
-    stationRef: raw.stationReference,
+    stationRef,
     value: raw.value,
     dateTime: raw.dateTime,
     measure: raw.measure,

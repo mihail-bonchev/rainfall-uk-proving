@@ -15,7 +15,7 @@ function makeRawReading(stationRef: string, value: number, dateTime = '2025-11-2
 }
 
 describe('fetchLatestReadings', () => {
-  it('returns normalised readings', async () => {
+  it('returns normalised readings with explicit stationReference', async () => {
     server.use(
       http.get(`${EA_BASE}/data/readings`, () =>
         HttpResponse.json({ items: [makeRawReading('E0001', 1.2)] }),
@@ -24,6 +24,24 @@ describe('fetchLatestReadings', () => {
     const readings = await fetchLatestReadings()
     expect(readings).toHaveLength(1)
     expect(readings[0]).toMatchObject({ stationRef: 'E0001', value: 1.2 })
+  })
+
+  it('extracts stationRef from measure URL when stationReference field is absent (real API format)', async () => {
+    server.use(
+      http.get(`${EA_BASE}/data/readings`, () =>
+        HttpResponse.json({
+          items: [{
+            dateTime: '2025-11-21T14:30:00Z',
+            measure: `${EA_BASE}/id/measures/E7050-rainfall-tipping_bucket_raingauge-t-15_min-mm`,
+            value: 0.4,
+          }],
+        }),
+      ),
+    )
+    const readings = await fetchLatestReadings()
+    expect(readings).toHaveLength(1)
+    expect(readings[0].stationRef).toBe('E7050')
+    expect(readings[0].value).toBe(0.4)
   })
 
   it('filters out readings with null or negative values', async () => {
