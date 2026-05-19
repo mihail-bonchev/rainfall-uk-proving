@@ -3,6 +3,14 @@ import App from './App'
 import { renderWithProviders } from './test/utils'
 import * as stationStore from './services/db/stationStore'
 
+const mockGetMap = vi.fn(() => ({
+  on: vi.fn(),
+  off: vi.fn(),
+  getCanvas: vi.fn(() => ({ style: { cursor: '' } })),
+  getSource: vi.fn(),
+  flyTo: vi.fn(),
+}))
+
 vi.mock('react-map-gl/maplibre', () => ({
   default: ({ children }: { children?: React.ReactNode }) => (
     <div data-testid="maplibre-stub" aria-label="Map">
@@ -10,6 +18,9 @@ vi.mock('react-map-gl/maplibre', () => ({
     </div>
   ),
   Source: ({ id }: { id: string }) => <div data-testid={`source-${id}`} />,
+  Layer: () => null,
+  Popup: () => null,
+  useMap: () => ({ current: { getMap: mockGetMap } }),
 }))
 
 describe('App', () => {

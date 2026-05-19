@@ -2,7 +2,12 @@ import { http, HttpResponse } from 'msw'
 
 const EA_BASE = 'https://environment.data.gov.uk/flood-monitoring'
 
+const EMPTY_GEOJSON = { type: 'FeatureCollection', features: [] }
+
 export const handlers = [
+  http.get('/data/ea-areas.geojson', () => HttpResponse.json(EMPTY_GEOJSON)),
+
+
   http.get(`${EA_BASE}/id/stations`, () => {
     return HttpResponse.json({
       meta: { totalCount: 1027 },
