@@ -15,7 +15,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:bdd": "bddgen && playwright test --project=bdd",
-    "test:bdd:gen": "bddgen"
+    "test:bdd:gen": "bddgen",
+    "test:smoke": "vitest run --config vitest.smoke.config.ts"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",
