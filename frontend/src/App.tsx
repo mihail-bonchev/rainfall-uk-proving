@@ -9,19 +9,11 @@ import { RegionalSummaryPanel } from './components/RegionalSummaryPanel'
 import { TimeRangeControl } from './components/TimeRangeControl'
 import { SyncStatus } from './components/SyncStatus'
 import { OfflineBanner } from './components/OfflineBanner'
+import { RainfallLegend } from './components/RainfallLegend'
 import { Button } from './components/ui/button'
 import { useLatestReadings } from './hooks/useLatestReadings'
 import { downloadRegionalCsv } from './utils/csvExport'
 import type { TimeRange } from './types/api'
-
-const CHOROPLETH_LABELS: Record<TimeRange, string> = {
-  '15m': 'Latest reading (mm)',
-  '6h': '6h avg (mm)',
-  '24h': '24h avg (mm)',
-  '7d': '7-day total (mm)',
-  '28d': '28-day total (mm)',
-  'custom': 'Custom period (mm)',
-}
 
 function App() {
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null)
@@ -68,13 +60,7 @@ function App() {
       >
         Regions
       </Button>
-      <div
-        data-testid="choropleth-label"
-        style={{ position: 'absolute', bottom: 32, left: 16, zIndex: 10 }}
-        className="bg-white/90 backdrop-blur-sm rounded px-2 py-1 text-xs text-muted-foreground shadow-sm pointer-events-none"
-      >
-        {CHOROPLETH_LABELS[timeRange]}
-      </div>
+      <RainfallLegend timeRange={timeRange} />
       <SyncStatus dataUpdatedAt={dataUpdatedAt} isError={isError} />
       <OfflineBanner failureCount={failureCount} lastUpdatedAt={dataUpdatedAt} />
       <MapGL
