@@ -25,7 +25,9 @@ const PERIOD_LABELS: Record<TimeRange, string> = {
 }
 
 function fmt(n: number): string {
-  return n >= 100 ? String(Math.round(n)) : n >= 10 ? String(Math.round(n)) : String(n)
+  if (n >= 10) return String(Math.round(n))
+  // Avoid floating-point noise (e.g. 0.1 × 7 = 0.7000000000000001)
+  return parseFloat(n.toPrecision(2)).toString()
 }
 
 interface Props {
