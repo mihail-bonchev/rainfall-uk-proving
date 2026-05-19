@@ -66,9 +66,9 @@ function App() {
       <MapGL
         mapStyle="https://tiles.openfreemap.org/styles/liberty"
         initialViewState={{
-          longitude: -2.5,
-          latitude: 54.0,
-          zoom: 6,
+          longitude: -2.8,
+          latitude: 55.5,
+          zoom: 5.5,
         }}
         style={{ position: 'absolute', inset: 0 }}
         scrollZoom
@@ -76,7 +76,7 @@ function App() {
         touchZoomRotate
       >
         <EAAreasSource readingsMap={readingsMap} timeRange={timeRange} customRange={customRange} />
-        <StationsSource onStationClick={handleStationClick} readingsMap={readingsMap} />
+        <StationsSource onStationClick={handleStationClick} readingsMap={readingsMap} timeRange={timeRange} />
       </MapGL>
     </div>
   )

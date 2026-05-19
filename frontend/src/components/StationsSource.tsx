@@ -4,19 +4,94 @@ import type { ExpressionSpecification } from 'maplibre-gl'
 import type { GeoJSONSource, MapLayerMouseEvent } from 'maplibre-gl'
 import type { Point } from 'geojson'
 import { useStations, toGeoJSON } from '../hooks/useStations'
+import type { TimeRange } from '../types/api'
+
+// Period-aware upper bound for heatmap weight normalisation.
+// These are "heavy rain" thresholds — values at or above map to full intensity.
+const PERIOD_MAX_MM: Record<TimeRange, number> = {
+  '15m': 3,
+  '6h':  15,
+  '24h': 40,
+  '7d':  120,
+  '28d': 350,
+  'custom': 50,
+}
+
+function makeHeatmapLayer(timeRange: TimeRange): LayerProps {
+  const maxMm = PERIOD_MAX_MM[timeRange]
+  return {
+    id: 'rainfall-heat',
+    type: 'heatmap',
+    maxzoom: 12,
+    paint: {
+      // Weight each station proportionally to its rainfall total.
+      'heatmap-weight': [
+        'interpolate', ['linear'],
+        ['max', ['get', 'rainfall_mm'], 0],
+        0,            0,
+        0.1,          0.05,
+        maxMm * 0.05, 0.2,
+        maxMm * 0.2,  0.5,
+        maxMm * 0.6,  0.8,
+        maxMm,        1,
+      ] as ExpressionSpecification,
+
+      // Intensity — boost slightly at higher zoom for fine detail.
+      'heatmap-intensity': [
+        'interpolate', ['linear'], ['zoom'],
+        4, 0.6,
+        7, 1.4,
+        10, 2,
+      ] as ExpressionSpecification,
+
+      // Met Office palette: transparent → pale-blue → cyan → green → yellow → orange → red.
+      'heatmap-color': [
+        'interpolate', ['linear'],
+        ['heatmap-density'],
+        0,    'rgba(0,0,0,0)',
+        0.05, 'rgba(168,213,245,0.4)',
+        0.2,  '#a8d5f5',
+        0.35, '#50c8f4',
+        0.5,  '#00a651',
+        0.65, '#fff200',
+        0.8,  '#ff7f00',
+        1,    '#e8001d',
+      ] as ExpressionSpecification,
+
+      // Radius shrinks as you zoom in — wide blobs at country scale, tight at local scale.
+      'heatmap-radius': [
+        'interpolate', ['linear'], ['zoom'],
+        4,  70,
+        6,  55,
+        8,  40,
+        10, 25,
+        12, 12,
+      ] as ExpressionSpecification,
+
+      // Fade the heatmap out as individual station circles take over.
+      'heatmap-opacity': [
+        'interpolate', ['linear'], ['zoom'],
+        4,  0.9,
+        9,  0.85,
+        11, 0.3,
+        12, 0,
+      ] as ExpressionSpecification,
+    },
+  }
+}
 
 // Met Office rainfall colour scale — step expression on rainfall_mm property
 const RAINFALL_COLOUR_SCALE = [
   'step',
   ['get', 'rainfall_mm'],
-  'transparent', // < 0.1 mm
-  0.1, '#a8d5f5', // pale blue
-  0.5, '#50c8f4', // cyan
-  2,   '#00a651', // green
-  5,   '#fff200', // yellow
-  10,  '#ff7f00', // orange
-  20,  '#e8001d', // red
-  50,  '#9b0026', // dark red/purple
+  'transparent',
+  0.1, '#a8d5f5',
+  0.5, '#50c8f4',
+  2,   '#00a651',
+  5,   '#fff200',
+  10,  '#ff7f00',
+  20,  '#e8001d',
+  50,  '#9b0026',
 ] as ExpressionSpecification
 
 // Cluster colour: same scale applied to rainfall_sum / point_count
@@ -33,10 +108,10 @@ const CLUSTER_COLOUR_SCALE = [
   50,  '#9b0026',
 ] as ExpressionSpecification
 
-// Cluster layers fade in from zoom 6.5→7.5, hold until 10, fade out 10→11
+// Cluster layers fade in from zoom 7→8, hold until 10, fade out 10→11
 const CLUSTER_OPACITY: ExpressionSpecification = [
   'interpolate', ['linear'], ['zoom'],
-  6.5, 0, 7.5, 1, 10, 1, 11, 0,
+  7, 0, 8, 0.9, 10, 0.9, 11, 0,
 ]
 
 const clustersLargeLayer: LayerProps = {
@@ -103,7 +178,6 @@ const clusterCountLayer: LayerProps = {
   },
 }
 
-// Individual station circles: fade in 10→11, fully visible at 11+
 const stationCircleLayer: LayerProps = {
   id: 'station-circles',
   type: 'circle',
@@ -130,6 +204,7 @@ interface TooltipState {
 interface Props {
   onStationClick?: (stationId: string) => void
   readingsMap?: Map<string, number>
+  timeRange?: TimeRange
 }
 
 function easeInOutCubic(t: number): number {
@@ -138,7 +213,7 @@ function easeInOutCubic(t: number): number {
 
 const CLUSTER_LAYER_IDS = ['clusters-large', 'clusters-medium', 'clusters-small'] as const
 
-export function StationsSource({ onStationClick, readingsMap = new Map() }: Props) {
+export function StationsSource({ onStationClick, readingsMap = new Map(), timeRange = '15m' }: Props) {
   const { data: stations, isPending } = useStations()
   const { current: mapRef } = useMap()
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
@@ -219,6 +294,7 @@ export function StationsSource({ onStationClick, readingsMap = new Map() }: Prop
         clusterRadius={50}
         clusterProperties={{ rainfall_sum: ['+', ['get', 'rainfall_mm']] }}
       >
+        <Layer {...makeHeatmapLayer(timeRange)} />
         <Layer {...clustersLargeLayer} />
         <Layer {...clustersMediumLayer} />
         <Layer {...clustersSmallLayer} />
