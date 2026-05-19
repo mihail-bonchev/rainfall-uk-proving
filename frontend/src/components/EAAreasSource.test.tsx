@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen } from '@testing-library/react'
 import type { FeatureCollection } from 'geojson'
-import { EAAreasSource, computeAreaAverages } from './EAAreasSource'
+import { EAAreasSource } from './EAAreasSource'
+import { computeAreaAverages } from '../utils/rainfallAggregation'
 import { renderWithProviders } from '../test/utils'
 import * as stationStore from '../services/db/stationStore'
 

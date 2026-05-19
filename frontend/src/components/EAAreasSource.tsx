@@ -2,7 +2,8 @@ import { useMemo } from 'react'
 import { Source, Layer, type LayerProps } from 'react-map-gl/maplibre'
 import { useQuery } from '@tanstack/react-query'
 import type { FeatureCollection, Feature, Geometry } from 'geojson'
-import { useStations } from '../hooks/useStations'
+import { useStations, toGeoJSON } from '../hooks/useStations'
+import { computeAreaAverages } from '../utils/rainfallAggregation'
 
 type AreaProperties = Record<string, unknown> & { short_name: string; area_rainfall_avg: number }
 type AreaGeoJSON = FeatureCollection<Geometry, AreaProperties>
@@ -50,22 +51,12 @@ async function fetchAreasGeoJSON(url: string): Promise<FeatureCollection> {
   return res.json() as Promise<FeatureCollection>
 }
 
-export function computeAreaAverages(stationsGeoJSON: FeatureCollection): Map<string, number> {
-  const sums = new Map<string, { sum: number; count: number }>()
-  for (const { properties } of stationsGeoJSON.features) {
-    const area = (properties?.eaAreaName as string | undefined) ?? ''
-    if (!area) continue
-    const rainfall = (properties?.rainfall_mm as number | undefined) ?? 0
-    const acc = sums.get(area) ?? { sum: 0, count: 0 }
-    sums.set(area, { sum: acc.sum + rainfall, count: acc.count + 1 })
-  }
-  return new Map(
-    [...sums.entries()].map(([area, { sum, count }]) => [area, count > 0 ? sum / count : 0]),
-  )
+interface Props {
+  readingsMap?: Map<string, number>
 }
 
-export function EAAreasSource() {
-  const { data: stationsGeoJSON } = useStations()
+export function EAAreasSource({ readingsMap = new Map() }: Props) {
+  const { data: stations = [] } = useStations()
 
   const { data: areasGeoJSON } = useQuery({
     queryKey: ['ea-areas'],
@@ -73,10 +64,9 @@ export function EAAreasSource() {
     staleTime: Infinity,
   })
 
-  const areaAverages = useMemo(
-    () => (stationsGeoJSON ? computeAreaAverages(stationsGeoJSON) : new Map<string, number>()),
-    [stationsGeoJSON],
-  )
+  const stationsGeoJSON = useMemo(() => toGeoJSON(stations, readingsMap), [stations, readingsMap])
+
+  const areaAverages = useMemo(() => computeAreaAverages(stationsGeoJSON), [stationsGeoJSON])
 
   const enrichedAreas = useMemo((): AreaGeoJSON | null => {
     if (!areasGeoJSON) return null

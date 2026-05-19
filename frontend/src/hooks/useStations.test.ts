@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createElement } from 'react'
-import { useStations } from './useStations'
+import { useStations, toGeoJSON } from './useStations'
 import * as stationStore from '../services/db/stationStore'
 
 const MOCK_STATIONS = [
@@ -21,26 +21,31 @@ describe('useStations', () => {
     vi.restoreAllMocks()
   })
 
-  it('returns a GeoJSON FeatureCollection from stations', async () => {
+  it('returns an array of Station objects', async () => {
     vi.spyOn(stationStore, 'getStations').mockResolvedValue(MOCK_STATIONS)
-
     const { result } = renderHook(() => useStations(), { wrapper: makeWrapper() })
-
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toHaveLength(2)
+    expect(result.current.data![0]).toMatchObject({ id: 'E0001', label: 'Station 1' })
+  })
 
-    const fc = result.current.data!
+  it('is pending while data is loading', () => {
+    vi.spyOn(stationStore, 'getStations').mockReturnValue(new Promise(() => {}))
+    const { result } = renderHook(() => useStations(), { wrapper: makeWrapper() })
+    expect(result.current.isPending).toBe(true)
+  })
+})
+
+describe('toGeoJSON', () => {
+  it('returns a GeoJSON FeatureCollection from stations', () => {
+    const fc = toGeoJSON(MOCK_STATIONS)
     expect(fc.type).toBe('FeatureCollection')
     expect(fc.features).toHaveLength(2)
   })
 
-  it('maps each station to a Point Feature with correct properties', async () => {
-    vi.spyOn(stationStore, 'getStations').mockResolvedValue(MOCK_STATIONS)
-
-    const { result } = renderHook(() => useStations(), { wrapper: makeWrapper() })
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true))
-
-    const f = result.current.data!.features[0]
+  it('maps each station to a Point Feature with correct properties', () => {
+    const fc = toGeoJSON(MOCK_STATIONS)
+    const f = fc.features[0]
     expect(f.type).toBe('Feature')
     expect(f.geometry).toEqual({ type: 'Point', coordinates: [-0.1, 51.5] })
     expect(f.properties).toMatchObject({
@@ -51,14 +56,16 @@ describe('useStations', () => {
     })
   })
 
-  it('coordinates are [longitude, latitude]', async () => {
-    vi.spyOn(stationStore, 'getStations').mockResolvedValue([MOCK_STATIONS[1]])
+  it('uses readingsMap values for rainfall_mm', () => {
+    const readingsMap = new Map([['E0001', 3.7]])
+    const fc = toGeoJSON(MOCK_STATIONS, readingsMap)
+    expect(fc.features[0].properties!.rainfall_mm).toBeCloseTo(3.7)
+    expect(fc.features[1].properties!.rainfall_mm).toBe(0)
+  })
 
-    const { result } = renderHook(() => useStations(), { wrapper: makeWrapper() })
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true))
-
-    const [lng, lat] = result.current.data!.features[0].geometry.coordinates as number[]
+  it('coordinates are [longitude, latitude]', () => {
+    const fc = toGeoJSON([MOCK_STATIONS[1]])
+    const [lng, lat] = fc.features[0].geometry.coordinates as number[]
     expect(lng).toBe(MOCK_STATIONS[1].long)
     expect(lat).toBe(MOCK_STATIONS[1].lat)
   })

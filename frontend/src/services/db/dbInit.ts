@@ -1,7 +1,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type { Station } from '../api/stationService'
 
-interface Reading {
+export interface StoredReading {
   stationRef: string
   dateTime: string
   value: number
@@ -25,7 +25,10 @@ interface RainfallDB extends DBSchema {
   }
   readings: {
     key: [string, string]
-    value: Reading
+    value: StoredReading
+    indexes: {
+      dateTime: string
+    }
   }
   syncMetadata: {
     key: string
@@ -51,15 +54,21 @@ export async function _resetDbForTests(): Promise<void> {
 
 export function getDb(): Promise<IDBPDatabase<RainfallDB>> {
   if (!dbPromise) {
-    dbPromise = openDB<RainfallDB>('rainfall-explorer', 1, {
-      upgrade(db) {
-        const stationStore = db.createObjectStore('stations', { keyPath: 'id' })
-        stationStore.createIndex('eaAreaName', 'eaAreaName')
-        stationStore.createIndex('lat-long', ['lat', 'long'])
+    dbPromise = openDB<RainfallDB>('rainfall-explorer', 2, {
+      upgrade(db, oldVersion, _newVersion, tx) {
+        if (oldVersion < 1) {
+          const stationStore = db.createObjectStore('stations', { keyPath: 'id' })
+          stationStore.createIndex('eaAreaName', 'eaAreaName')
+          stationStore.createIndex('lat-long', ['lat', 'long'])
 
-        db.createObjectStore('readings', { keyPath: ['stationRef', 'dateTime'] })
+          db.createObjectStore('readings', { keyPath: ['stationRef', 'dateTime'] })
 
-        db.createObjectStore('syncMetadata', { keyPath: 'key' })
+          db.createObjectStore('syncMetadata', { keyPath: 'key' })
+        }
+        if (oldVersion < 2) {
+          const readingsStore = tx.objectStore('readings')
+          readingsStore.createIndex('dateTime', 'dateTime')
+        }
       },
     })
   }

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Source, Layer, Popup, useMap, type LayerProps } from 'react-map-gl/maplibre'
 import type { GeoJSONSource, MapLayerMouseEvent } from 'maplibre-gl'
 import type { Point } from 'geojson'
-import { useStations } from '../hooks/useStations'
+import { useStations, toGeoJSON } from '../hooks/useStations'
 
 // Met Office rainfall colour scale — step expression on rainfall_mm property
 const RAINFALL_COLOUR_SCALE = [
@@ -128,6 +128,7 @@ interface TooltipState {
 
 interface Props {
   onStationClick?: (stationId: string) => void
+  readingsMap?: Map<string, number>
 }
 
 function easeInOutCubic(t: number): number {
@@ -136,10 +137,12 @@ function easeInOutCubic(t: number): number {
 
 const CLUSTER_LAYER_IDS = ['clusters-large', 'clusters-medium', 'clusters-small'] as const
 
-export function StationsSource({ onStationClick }: Props) {
-  const { data } = useStations()
+export function StationsSource({ onStationClick, readingsMap = new Map() }: Props) {
+  const { data: stations, isPending } = useStations()
   const { current: mapRef } = useMap()
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
+
+  const geoJSON = useMemo(() => toGeoJSON(stations ?? [], readingsMap), [stations, readingsMap])
 
   useEffect(() => {
     if (!mapRef) return
@@ -202,14 +205,14 @@ export function StationsSource({ onStationClick }: Props) {
     }
   }, [mapRef, onStationClick])
 
-  if (!data) return null
+  if (isPending) return null
 
   return (
     <>
       <Source
         id="stations"
         type="geojson"
-        data={data}
+        data={geoJSON}
         cluster={true}
         clusterMaxZoom={10}
         clusterRadius={50}

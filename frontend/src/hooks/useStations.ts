@@ -3,7 +3,10 @@ import type { FeatureCollection } from 'geojson'
 import { getStations } from '../services/db/stationStore'
 import type { Station } from '../services/api/stationService'
 
-function toGeoJSON(stations: Station[]): FeatureCollection {
+export function toGeoJSON(
+  stations: Station[],
+  readingsMap: Map<string, number> = new Map(),
+): FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: stations.map((s) => ({
@@ -13,17 +16,16 @@ function toGeoJSON(stations: Station[]): FeatureCollection {
         id: s.id,
         label: s.label,
         eaAreaName: s.eaAreaName,
-        rainfall_mm: 0,
+        rainfall_mm: readingsMap.get(s.id) ?? 0,
       },
     })),
   }
 }
 
 export function useStations() {
-  return useQuery({
+  return useQuery<Station[]>({
     queryKey: ['stations'],
     queryFn: getStations,
-    select: toGeoJSON,
     staleTime: Infinity,
   })
 }

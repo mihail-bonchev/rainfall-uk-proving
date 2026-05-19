@@ -7,7 +7,6 @@ const EMPTY_GEOJSON = { type: 'FeatureCollection', features: [] }
 export const handlers = [
   http.get('/data/ea-areas.geojson', () => HttpResponse.json(EMPTY_GEOJSON)),
 
-
   http.get(`${EA_BASE}/id/stations`, () => {
     return HttpResponse.json({
       meta: { totalCount: 1027 },
@@ -35,6 +34,25 @@ export const handlers = [
         long: -0.1,
         eaAreaName: 'Thames',
       },
+    })
+  }),
+
+  http.get(`${EA_BASE}/data/readings`, () => {
+    return HttpResponse.json({
+      items: [
+        {
+          stationReference: 'E0001',
+          value: 1.2,
+          dateTime: '2025-11-21T14:30:00Z',
+          measure: `${EA_BASE}/id/measures/E0001-rainfall-tipping_bucket_raingauge-t-15_min-mm`,
+        },
+        {
+          stationReference: 'E0002',
+          value: 0.4,
+          dateTime: '2025-11-21T14:30:00Z',
+          measure: `${EA_BASE}/id/measures/E0002-rainfall-tipping_bucket_raingauge-t-15_min-mm`,
+        },
+      ],
     })
   }),
 ]
