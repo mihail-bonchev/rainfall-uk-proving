@@ -9,7 +9,7 @@ vi.mock('../services/db/supabaseClient', () => ({
   supabase: {
     from: () => ({
       select: () => ({
-        gte: () => ({ lt: mockLt }),
+        gte: () => ({ lt: () => ({ limit: mockLt }) }),
       }),
     }),
   },
@@ -20,12 +20,12 @@ beforeEach(() => {
 })
 
 describe('useHistoricalReadings', () => {
-  it('returns a Map of stationRef → total rainfall from server-side aggregate', async () => {
-    // PostgREST server-side SUM returns one row per station with column named "sum"
+  it('sums multiple daily rows per station into a single total', async () => {
     mockLt.mockResolvedValueOnce({
       data: [
-        { station_ref: 'E0001', sum: '7.5' },
-        { station_ref: 'E0002', sum: '10.0' },
+        { station_ref: 'E0001', total_mm: '5.50' },
+        { station_ref: 'E0001', total_mm: '2.00' },
+        { station_ref: 'E0002', total_mm: '10.00' },
       ],
       error: null,
     })
@@ -38,12 +38,15 @@ describe('useHistoricalReadings', () => {
     expect(result.current.data?.get('E0002')).toBeCloseTo(10.0)
   })
 
-  it('coerces PostgREST string-typed NUMERIC aggregate to a number', async () => {
-    // PostgREST returns NUMERIC aggregates as strings — must use Number() to avoid NaN.
+  it('coerces PostgREST string-typed NUMERIC values to numbers (prevents string concatenation)', async () => {
+    // PostgREST returns NUMERIC columns as strings. Without Number() coercion,
+    // `0 + '5.50'` = `'05.50'` and accumulating 28 rows gives an unparseable string → NaN.
     mockLt.mockResolvedValueOnce({
       data: [
-        { station_ref: 'E0001', sum: '8.60' },
-        { station_ref: 'E0002', sum: '10.30' },
+        { station_ref: 'E0001', total_mm: '5.50' },
+        { station_ref: 'E0001', total_mm: '2.00' },
+        { station_ref: 'E0001', total_mm: '1.10' },
+        { station_ref: 'E0002', total_mm: '10.30' },
       ],
       error: null,
     })
@@ -80,7 +83,6 @@ describe('useHistoricalReadings', () => {
       { wrapper: makeWrapper() },
     )
 
-    // Give TanStack Query a tick to potentially fire
     await new Promise((r) => setTimeout(r, 50))
 
     expect(result.current.isSuccess).toBe(false)

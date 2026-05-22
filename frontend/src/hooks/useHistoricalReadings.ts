@@ -2,10 +2,6 @@ import { useQuery } from '@tanstack/react-query'
 import type { UseQueryResult } from '@tanstack/react-query'
 import { supabase } from '../services/db/supabaseClient'
 
-// PostgREST names aggregate result columns by function name, not original column name.
-// NUMERIC aggregate values are returned as strings just like plain NUMERIC columns.
-type AggRow = { station_ref: string; sum: string }
-
 export function useHistoricalReadings(
   timeRange: '7d' | '28d',
   options: { enabled?: boolean } = {},
@@ -21,20 +17,22 @@ export function useHistoricalReadings(
   return useQuery<Map<string, number>>({
     queryKey: ['historical-readings', timeRange, startDateStr],
     queryFn: async () => {
-      // Aggregate on the server: one row per station instead of one row per station-day.
-      // Without this, the default 1000-row PostgREST limit truncates 7d to ~1 day of data
-      // and 28d to ~1/28th coverage, producing artificially low averages.
+      // 900 stations × 28 days = 25,200 rows max. PostgREST defaults to 1,000 rows,
+      // which silently truncates to ~1 day of data. The explicit limit covers the full window.
       const { data, error } = await supabase
         .from('station_daily_totals')
-        .select('station_ref, total_mm.sum()')
+        .select('station_ref, total_mm')
         .gte('date', startDateStr)
         .lt('date', todayStr)
+        .limit(30000)
 
       if (error) throw new Error(error.message)
 
       const readingsMap = new Map<string, number>()
-      for (const row of (data ?? []) as unknown as AggRow[]) {
-        readingsMap.set(row.station_ref, Number(row.sum))
+      for (const row of data ?? []) {
+        // PostgREST returns NUMERIC columns as strings — explicit coercion prevents
+        // string concatenation across multiple daily rows.
+        readingsMap.set(row.station_ref, (readingsMap.get(row.station_ref) ?? 0) + Number(row.total_mm))
       }
       return readingsMap
     },
