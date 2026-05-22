@@ -8,7 +8,7 @@ export default mergeConfig(
       environment: 'jsdom',
       globals: true,
       setupFiles: ['./src/test/setup.ts'],
-      exclude: ['**/node_modules/**', '**/e2e/**', '**/smoke/**'],
+      exclude: ['**/node_modules/**', '**/e2e/**', '**/smoke/**', '**/*.smoke.test.ts'],
       coverage: {
         provider: 'v8',
         reporter: ['text', 'html', 'lcov'],
@@ -17,6 +17,7 @@ export default mergeConfig(
           'node_modules/',
           'src/test/**',
           'src/smoke/**',
+          '**/*.smoke.test.ts',
           'src/main.tsx',
           'src/types/**',
           '**/*.d.ts',
