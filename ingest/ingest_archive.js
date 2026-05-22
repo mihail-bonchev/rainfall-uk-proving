@@ -9,6 +9,39 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const UPSERT_BATCH_SIZE = 500;
 
+/**
+ * Steps 1 + 2 — validate one CSV row and extract its stationRef.
+ * Returns { stationRef, value } if the row is valid, or null to skip it.
+ */
+function processRow(row) {
+  const measure = row.measure || '';
+  const raw = row.value;
+  const value = parseFloat(raw);
+
+  if (!raw || isNaN(value) || value < 0 || value > 500 || !measure.includes('-rainfall-')) {
+    return null;
+  }
+
+  const measureId = measure.split('/').pop();
+  const idx = measureId.indexOf('-rainfall-');
+  if (idx === -1) return null;
+
+  return { stationRef: measureId.slice(0, idx), value };
+}
+
+/**
+ * Step 4 helper — convert accumulated totals/counts into upsert rows.
+ * Rounds total_mm to 2 decimal places to match NUMERIC(8,2).
+ */
+function buildUpsertRows(date, totals, counts) {
+  return Object.keys(totals).map((stationRef) => ({
+    station_ref: stationRef,
+    date,
+    total_mm: Math.round(totals[stationRef] * 100) / 100,
+    reading_count: counts[stationRef],
+  }));
+}
+
 function getTargetDate() {
   const args = process.argv.slice(2);
   const flagIdx = args.indexOf('--date');
@@ -44,26 +77,10 @@ function downloadAndAggregate(date) {
 
       parser.on('data', (row) => {
         totalRows++;
-
-        const measure = row.measure || '';
-        const raw = row.value;
-        const value = parseFloat(raw);
-
-        // Step 1 — filter
-        if (!raw || isNaN(value) || value < 0 || value > 500 || !measure.includes('-rainfall-')) {
-          skippedRows++;
-          return;
-        }
-
-        // Step 2 — extract stationRef
-        const measureId = measure.split('/').pop();
-        const idx = measureId.indexOf('-rainfall-');
-        if (idx === -1) { skippedRows++; return; }
-        const stationRef = measureId.slice(0, idx);
-
-        // Step 3 — accumulate
-        totals[stationRef] = (totals[stationRef] || 0) + value;
-        counts[stationRef] = (counts[stationRef] || 0) + 1;
+        const parsed = processRow(row);
+        if (!parsed) { skippedRows++; return; }
+        totals[parsed.stationRef] = (totals[parsed.stationRef] || 0) + parsed.value;
+        counts[parsed.stationRef] = (counts[parsed.stationRef] || 0) + 1;
       });
 
       parser.on('end', () => resolve({ totals, counts, totalRows, skippedRows }));
@@ -75,12 +92,7 @@ function downloadAndAggregate(date) {
 }
 
 async function upsertRows(supabase, date, totals, counts) {
-  const rows = Object.keys(totals).map((stationRef) => ({
-    station_ref: stationRef,
-    date,
-    total_mm: Math.round(totals[stationRef] * 100) / 100,
-    reading_count: counts[stationRef],
-  }));
+  const rows = buildUpsertRows(date, totals, counts);
 
   for (let i = 0; i < rows.length; i += UPSERT_BATCH_SIZE) {
     const batch = rows.slice(i, i + UPSERT_BATCH_SIZE);
@@ -120,7 +132,11 @@ async function main() {
   console.log(`Done.       ${upserted} stations upserted in ${elapsed}s`);
 }
 
-main().catch((err) => {
-  console.error('Fatal:', err.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((err) => {
+    console.error('Fatal:', err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = { processRow, buildUpsertRows };

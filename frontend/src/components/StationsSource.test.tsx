@@ -67,14 +67,14 @@ describe('StationsSource', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('renders a clustered geojson source named "stations"', async () => {
+  it('renders a geojson source named "stations"', async () => {
     vi.spyOn(stationStore, 'getStations').mockResolvedValue(MOCK_STATIONS)
 
     renderWithProviders(<StationsSource />)
     const el = await screen.findByTestId('source-stations')
     expect(el).toBeInTheDocument()
     expect(el).toHaveAttribute('data-source-type', 'geojson')
-    expect(el).toHaveAttribute('data-clustered', 'true')
+    expect(el).toHaveAttribute('data-clustered', 'false')
   })
 
   it('passes all stations as features to the source', async () => {
@@ -85,22 +85,13 @@ describe('StationsSource', () => {
     expect(el).toHaveAttribute('data-feature-count', '2')
   })
 
-  it('renders all three cluster circle layers', async () => {
+  it('renders a heatmap layer and a station-circles layer', async () => {
     vi.spyOn(stationStore, 'getStations').mockResolvedValue(MOCK_STATIONS)
     renderWithProviders(<StationsSource />)
-    const large = await screen.findByTestId('layer-clusters-large')
-    const medium = await screen.findByTestId('layer-clusters-medium')
-    const small = await screen.findByTestId('layer-clusters-small')
-    expect(large).toHaveAttribute('data-layer-type', 'circle')
-    expect(medium).toHaveAttribute('data-layer-type', 'circle')
-    expect(small).toHaveAttribute('data-layer-type', 'circle')
-  })
-
-  it('renders a cluster-count symbol layer', async () => {
-    vi.spyOn(stationStore, 'getStations').mockResolvedValue(MOCK_STATIONS)
-    renderWithProviders(<StationsSource />)
-    const label = await screen.findByTestId('layer-cluster-count')
-    expect(label).toHaveAttribute('data-layer-type', 'symbol')
+    const heat = await screen.findByTestId('layer-rainfall-heat')
+    const circles = await screen.findByTestId('layer-station-circles')
+    expect(heat).toHaveAttribute('data-layer-type', 'heatmap')
+    expect(circles).toHaveAttribute('data-layer-type', 'circle')
   })
 
   it('renders the station-circles circle layer for individual stations', async () => {
@@ -110,16 +101,10 @@ describe('StationsSource', () => {
     expect(layer).toHaveAttribute('data-layer-type', 'circle')
   })
 
-  it('registers click and hover event handlers on the map', async () => {
+  it('registers click and hover event handlers on station-circles', async () => {
     vi.spyOn(stationStore, 'getStations').mockResolvedValue(MOCK_STATIONS)
     renderWithProviders(<StationsSource />)
     await screen.findByTestId('source-stations')
-    // Each cluster layer: click + mouseenter + mouseleave = 3 × 3 = 9
-    // station-circles: click + mouseenter + mouseleave = 3
-    // Total: 12 on() calls
-    expect(mockOn).toHaveBeenCalledWith('click', 'clusters-large', expect.any(Function))
-    expect(mockOn).toHaveBeenCalledWith('click', 'clusters-medium', expect.any(Function))
-    expect(mockOn).toHaveBeenCalledWith('click', 'clusters-small', expect.any(Function))
     expect(mockOn).toHaveBeenCalledWith('click', 'station-circles', expect.any(Function))
     expect(mockOn).toHaveBeenCalledWith('mouseenter', 'station-circles', expect.any(Function))
     expect(mockOn).toHaveBeenCalledWith('mouseleave', 'station-circles', expect.any(Function))

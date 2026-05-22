@@ -4,7 +4,8 @@
   "description": "Daily EA archive ingest to Supabase",
   "main": "ingest_archive.js",
   "scripts": {
-    "start": "node ingest_archive.js"
+    "start": "node ingest_archive.js",
+    "test": "node --test ingest_archive.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

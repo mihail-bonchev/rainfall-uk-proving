@@ -33,7 +33,9 @@ describe('useLatestReadings', () => {
     expect(result.current.data?.get('E0002')).toBeCloseTo(0.8)
   })
 
-  it('sums multiple readings for the same station', async () => {
+  it('normalises multiple readings per station (avg × expected intervals)', async () => {
+    // Mock returns [1.0, 2.0] for every per-day fetch → avg = 1.5
+    // getExpectedIntervals('7d') = 672 → normalised = 1.5 × 672 = 1008
     server.use(
       http.get(`${EA_BASE}/data/readings`, () =>
         HttpResponse.json({
@@ -49,7 +51,7 @@ describe('useLatestReadings', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
-    expect(result.current.data?.get('E0001')).toBeCloseTo(3.0)
+    expect(result.current.data?.get('E0001')).toBeCloseTo(1008)
   })
 
   it('enters error state when the API fails', async () => {

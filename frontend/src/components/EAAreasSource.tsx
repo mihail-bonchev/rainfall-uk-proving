@@ -11,8 +11,18 @@ async function fetchAreasGeoJSON(url: string): Promise<FeatureCollection> {
   return res.json() as Promise<FeatureCollection>
 }
 
-// Subtle area boundary lines — fade out as you zoom in past station level.
+// Fade out as you zoom in past station level.
 const FADE: ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], 5, 0.5, 8, 0]
+
+const fillLayer: LayerProps = {
+  id: 'ea-areas-fill',
+  type: 'fill',
+  maxzoom: 9,
+  paint: {
+    'fill-color': '#4b5563',
+    'fill-opacity': ['interpolate', ['linear'], ['zoom'], 5, 0.08, 8, 0] as ExpressionSpecification,
+  },
+}
 
 const outlineLayer: LayerProps = {
   id: 'ea-areas-outline',
@@ -43,6 +53,7 @@ export function EAAreasSource({ readingsMap: _readingsMap, timeRange: _timeRange
 
   return (
     <Source id="ea-areas" type="geojson" data={areasGeoJSON}>
+      <Layer {...fillLayer} />
       <Layer {...outlineLayer} />
     </Source>
   )

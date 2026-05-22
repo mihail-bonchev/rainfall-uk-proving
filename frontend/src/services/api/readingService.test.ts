@@ -81,9 +81,9 @@ describe('fetchReadings', () => {
         return HttpResponse.json({ items: [] })
       }),
     )
-    await fetchReadings({ startdate: '2025-11-14', enddate: '2025-11-21' })
+    await fetchReadings({ startdate: '2025-11-21', enddate: '2025-11-21' })
     const params = new URL(capturedUrl).searchParams
-    expect(params.get('startdate')).toBe('2025-11-14')
+    expect(params.get('startdate')).toBe('2025-11-21')
     expect(params.get('enddate')).toBe('2025-11-21')
   })
 

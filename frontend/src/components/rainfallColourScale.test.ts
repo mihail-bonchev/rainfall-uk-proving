@@ -15,8 +15,8 @@ function evaluateStep(scale: unknown[], value: number): string {
 }
 
 describe('RAINFALL_COLOUR_SCALE step expression', () => {
-  it('is transparent below 0.1 mm (dry)', () => {
-    expect(evaluateStep(RAINFALL_COLOUR_SCALE as unknown[], 0)).toBe('transparent')
+  it('is grey for stations with no reading (value = 0)', () => {
+    expect(evaluateStep(RAINFALL_COLOUR_SCALE as unknown[], 0)).toBe('rgba(180,180,180,0.5)')
   })
 
   it('is pale blue for drizzle (0.1–0.5 mm)', () => {
