@@ -5,8 +5,8 @@ import { useQuery } from '@tanstack/react-query'
 import type { FeatureCollection } from 'geojson'
 import type { DateRange } from 'react-day-picker'
 import type { TimeRange } from '../types/api'
-import { useStations, toGeoJSON } from '../hooks/useStations'
-import { computeAreaAverages } from '../utils/rainfallAggregation'
+import { useStations } from '../hooks/useStations'
+import { aggregateByArea } from '../services/aggregation/regionalAggregator'
 
 async function fetchAreasGeoJSON(url: string): Promise<FeatureCollection> {
   const res = await fetch(url)
@@ -75,10 +75,11 @@ export function EAAreasSource({ readingsMap = new Map(), timeRange: _timeRange, 
 
   const { data: stations = [] } = useStations()
 
+  // Average the per-station accumulated totals, counting only stations that reported data.
   const areaAverages = useMemo(() => {
-    const stationGeoJSON = toGeoJSON(stations, readingsMap)
-    return computeAreaAverages(stationGeoJSON)
-  }, [stations, readingsMap])
+    const summaries = aggregateByArea(readingsMap, stations)
+    return new Map(summaries.map((s) => [s.areaName, s.avgMm]))
+  }, [readingsMap, stations])
 
   const enrichedGeoJSON = useMemo(() => {
     if (!areasGeoJSON) return null

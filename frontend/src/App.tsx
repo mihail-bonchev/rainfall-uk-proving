@@ -75,8 +75,8 @@ function App() {
         dragPan
         touchZoomRotate
       >
-        <EAAreasSource readingsMap={readingsMap} timeRange={timeRange} customRange={customRange} />
         <StationsSource onStationClick={handleStationClick} readingsMap={readingsMap} timeRange={timeRange} />
+        <EAAreasSource readingsMap={readingsMap} timeRange={timeRange} customRange={customRange} />
       </MapGL>
     </div>
   )

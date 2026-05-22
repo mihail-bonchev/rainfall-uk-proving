@@ -92,13 +92,10 @@ function makeHeatmapLayer(timeRange: TimeRange): LayerProps {
         12, 8,
       ] as ExpressionSpecification,
 
-      // Fade in from zoom 7 so it doesn't compete with the choropleth at overview zoom,
-      // then fade out as station circles take over from zoom 10.
+      // Fade out cleanly as station circles take over from zoom 10.
       'heatmap-opacity': [
         'interpolate', ['linear'], ['zoom'],
-        5,  0,
-        7,  0.2,
-        8,  0.85,
+        4,  0.9,
         9,  0.85,
         11, 0.3,
         13, 0,
