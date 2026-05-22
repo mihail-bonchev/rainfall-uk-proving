@@ -3,16 +3,16 @@ import { generateRegionalCsvContent, buildCsvFilename, downloadRegionalCsv } fro
 import type { AreaSummary } from '../services/aggregation/regionalAggregator'
 
 const AREAS: AreaSummary[] = [
-  { areaName: 'Thames', totalMm: 42.5, avgMm: 5.3, maxMm: 10.0, stationCount: 10, stationsWithData: 8 },
-  { areaName: 'Yorkshire', totalMm: 120.0, avgMm: 15.0, maxMm: 30.0, stationCount: 12, stationsWithData: 8 },
-  { areaName: 'Devon, Cornwall', totalMm: 7.5, avgMm: 2.5, maxMm: 4.0, stationCount: 5, stationsWithData: 3 },
+  { areaName: 'Thames', avgMm: 5.3, maxMm: 10.0, stationCount: 10, stationsWithData: 8 },
+  { areaName: 'Yorkshire', avgMm: 15.0, maxMm: 30.0, stationCount: 12, stationsWithData: 8 },
+  { areaName: 'Devon, Cornwall', avgMm: 2.5, maxMm: 4.0, stationCount: 5, stationsWithData: 3 },
 ]
 
 describe('generateRegionalCsvContent', () => {
   it('includes the correct header row', () => {
     const csv = generateRegionalCsvContent([])
     const header = csv.split('\n')[0]
-    expect(header).toBe('Area,Period Total (mm),Avg Per Station (mm),Stations With Data')
+    expect(header).toBe('Area,Avg Rainfall (mm),Stations With Data')
   })
 
   it('produces one row per area after the header', () => {
@@ -21,9 +21,8 @@ describe('generateRegionalCsvContent', () => {
     expect(lines).toHaveLength(4) // 1 header + 3 rows
   })
 
-  it('formats totalMm and avgMm to 1 decimal place', () => {
+  it('formats avgMm to 1 decimal place', () => {
     const csv = generateRegionalCsvContent([AREAS[0]])
-    expect(csv).toContain('42.5')
     expect(csv).toContain('5.3')
   })
 
@@ -40,7 +39,7 @@ describe('generateRegionalCsvContent', () => {
 
   it('returns only the header for empty areas array', () => {
     const csv = generateRegionalCsvContent([])
-    expect(csv).toBe('Area,Period Total (mm),Avg Per Station (mm),Stations With Data')
+    expect(csv).toBe('Area,Avg Rainfall (mm),Stations With Data')
   })
 })
 

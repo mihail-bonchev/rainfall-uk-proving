@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import type { DateRange } from 'react-day-picker'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from './ui/sheet'
 import { Button } from './ui/button'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -8,7 +7,7 @@ import { useRegionalSummary } from '../hooks/useRegionalSummary'
 import type { AreaSummary } from '../services/aggregation/regionalAggregator'
 import type { TimeRange } from '../types/api'
 
-type SortKey = keyof Pick<AreaSummary, 'areaName' | 'totalMm' | 'avgMm' | 'stationsWithData'>
+type SortKey = keyof Pick<AreaSummary, 'areaName' | 'avgMm' | 'stationsWithData'>
 type SortDir = 'asc' | 'desc'
 
 const TIME_RANGE_LABELS: Record<TimeRange, string> = {
@@ -22,9 +21,9 @@ const TIME_RANGE_LABELS: Record<TimeRange, string> = {
 
 function computeQuartiles(areas: AreaSummary[]): { q1: number; q3: number } {
   if (areas.length < 4) return { q1: -Infinity, q3: Infinity }
-  const sorted = [...areas].sort((a, b) => a.totalMm - b.totalMm)
-  const q1 = sorted[Math.floor(sorted.length * 0.25)].totalMm
-  const q3 = sorted[Math.floor(sorted.length * 0.75)].totalMm
+  const sorted = [...areas].sort((a, b) => a.avgMm - b.avgMm)
+  const q1 = sorted[Math.floor(sorted.length * 0.25)].avgMm
+  const q3 = sorted[Math.floor(sorted.length * 0.75)].avgMm
   return { q1, q3 }
 }
 
@@ -65,17 +64,17 @@ interface Props {
   open: boolean
   onClose: () => void
   timeRange: TimeRange
-  customRange?: DateRange
+  readingsMap: Map<string, number>
   onDownloadCsv?: (areas: AreaSummary[]) => void
 }
 
-export function RegionalSummaryPanel({ open, onClose, timeRange, customRange, onDownloadCsv }: Props) {
+export function RegionalSummaryPanel({ open, onClose, timeRange, readingsMap, onDownloadCsv }: Props) {
   const isMobile = useIsMobile()
-  const [sortKey, setSortKey] = useState<SortKey>('totalMm')
+  const [sortKey, setSortKey] = useState<SortKey>('avgMm')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
   const { data: stations = [] } = useStations()
-  const { data: areas, isLoading, isError } = useRegionalSummary(timeRange, stations, customRange)
+  const areas = useRegionalSummary(readingsMap, stations)
 
   const handleSort = (key: SortKey) => {
     if (key === sortKey) {
@@ -86,8 +85,8 @@ export function RegionalSummaryPanel({ open, onClose, timeRange, customRange, on
     }
   }
 
-  const sorted = areas ? sortAreas(areas, sortKey, sortDir) : []
-  const { q1, q3 } = areas ? computeQuartiles(areas) : { q1: -Infinity, q3: Infinity }
+  const sorted = sortAreas(areas, sortKey, sortDir)
+  const { q1, q3 } = computeQuartiles(areas)
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose() }}>
@@ -106,82 +105,58 @@ export function RegionalSummaryPanel({ open, onClose, timeRange, customRange, on
         </SheetHeader>
 
         <div className="px-4 pb-4">
-          {isLoading && (
-            <div data-testid="regional-loading" className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-              Loading rainfall data…
-            </div>
-          )}
-
-          {isError && !isLoading && (
-            <table data-testid="regional-table" className="w-full text-sm">
-              <tbody>
-                <tr>
-                  <td data-testid="regional-no-data" colSpan={4} className="px-3 py-8 text-center text-muted-foreground">
-                    No data available
-                  </td>
+          <div className="overflow-x-auto -mx-4 px-4">
+            <table data-testid="regional-table" className="w-full text-sm border-collapse min-w-[360px]">
+              <thead>
+                <tr className="border-b">
+                  <SortHeader label="Area" sortKey="areaName" currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                  <SortHeader label="Avg rainfall (mm)" sortKey="avgMm" currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                  <SortHeader label="Stations w/ data" sortKey="stationsWithData" currentKey={sortKey} dir={sortDir} onSort={handleSort} />
                 </tr>
+              </thead>
+              <tbody>
+                {sorted.length === 0 ? (
+                  <tr>
+                    <td data-testid="regional-no-data" colSpan={3} className="px-3 py-8 text-center text-muted-foreground">
+                      No data for this period
+                    </td>
+                  </tr>
+                ) : (
+                  sorted.map((area) => {
+                    const isHigh = area.avgMm > q3
+                    const isLow = area.avgMm < q1 && area.stationsWithData > 0
+                    return (
+                      <tr
+                        key={area.areaName}
+                        data-testid="regional-row"
+                        className={[
+                          'border-b transition-colors',
+                          isHigh ? 'bg-blue-50 dark:bg-blue-950/20' : '',
+                          isLow ? 'bg-slate-50 dark:bg-slate-900/20' : '',
+                        ].join(' ')}
+                      >
+                        <td className="px-3 py-2 font-medium">{area.areaName}</td>
+                        <td className="px-3 py-2 tabular-nums">{area.avgMm.toFixed(1)}</td>
+                        <td className="px-3 py-2 tabular-nums">{area.stationsWithData} / {area.stationCount}</td>
+                      </tr>
+                    )
+                  })
+                )}
               </tbody>
             </table>
-          )}
+          </div>
 
-          {!isLoading && !isError && (
-            <>
-              <div className="overflow-x-auto -mx-4 px-4">
-              <table data-testid="regional-table" className="w-full text-sm border-collapse min-w-[420px]">
-                <thead>
-                  <tr className="border-b">
-                    <SortHeader label="Area" sortKey="areaName" currentKey={sortKey} dir={sortDir} onSort={handleSort} />
-                    <SortHeader label="Total (mm)" sortKey="totalMm" currentKey={sortKey} dir={sortDir} onSort={handleSort} />
-                    <SortHeader label="Avg/station (mm)" sortKey="avgMm" currentKey={sortKey} dir={sortDir} onSort={handleSort} />
-                    <SortHeader label="Stations w/ data" sortKey="stationsWithData" currentKey={sortKey} dir={sortDir} onSort={handleSort} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {sorted.length === 0 ? (
-                    <tr>
-                      <td data-testid="regional-no-data" colSpan={4} className="px-3 py-8 text-center text-muted-foreground">
-                        No data for this period
-                      </td>
-                    </tr>
-                  ) : (
-                    sorted.map((area) => {
-                      const isHigh = area.totalMm > q3
-                      const isLow = area.totalMm < q1 && area.stationsWithData > 0
-                      return (
-                        <tr
-                          key={area.areaName}
-                          data-testid="regional-row"
-                          className={[
-                            'border-b transition-colors',
-                            isHigh ? 'bg-blue-50 dark:bg-blue-950/20' : '',
-                            isLow ? 'bg-slate-50 dark:bg-slate-900/20' : '',
-                          ].join(' ')}
-                        >
-                          <td className="px-3 py-2 font-medium">{area.areaName}</td>
-                          <td className="px-3 py-2 tabular-nums">{area.totalMm.toFixed(1)}</td>
-                          <td className="px-3 py-2 tabular-nums">{area.avgMm.toFixed(1)}</td>
-                          <td className="px-3 py-2 tabular-nums">{area.stationsWithData} / {area.stationCount}</td>
-                        </tr>
-                      )
-                    })
-                  )}
-                </tbody>
-              </table>
-              </div>
-
-              {onDownloadCsv && areas && areas.length > 0 && (
-                <div className="mt-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    data-testid="download-csv-btn"
-                    onClick={() => onDownloadCsv(areas)}
-                  >
-                    Download CSV
-                  </Button>
-                </div>
-              )}
-            </>
+          {onDownloadCsv && areas.length > 0 && (
+            <div className="mt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="download-csv-btn"
+                onClick={() => onDownloadCsv(areas)}
+              >
+                Download CSV
+              </Button>
+            </div>
           )}
         </div>
       </SheetContent>

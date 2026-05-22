@@ -10,12 +10,12 @@ import type { TimeRange } from '../types/api'
 // These are normalised values (avg-per-reading × expected-intervals) so they
 // represent realistic mm totals, not undersampled partials.
 const PERIOD_MAX_MM: Record<TimeRange, number> = {
-  '15m':    2,
-  '6h':     15,
-  '24h':    40,
-  '7d':     80,
-  '28d':    200,
-  'custom': 40,
+  '15m':    5,
+  '6h':     30,
+  '24h':    50,
+  '7d':     100,
+  '28d':    250,
+  'custom': 50,
 }
 
 // Met Office colour scale — used on individual station circles at high zoom.

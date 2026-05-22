@@ -46,19 +46,6 @@ export function getDateRangeForPreset(preset: TimeRange): DateRangeParams {
   }
 }
 
-// Number of 15-minute EA reporting intervals in each preset window.
-// Used to extrapolate sampled averages to full-period totals.
-export function getExpectedIntervals(timeRange: TimeRange): number {
-  switch (timeRange) {
-    case '15m':  return 1
-    case '6h':   return 24
-    case '24h':  return 96
-    case '7d':   return 672
-    case '28d':  return 2688
-    default:     return 1
-  }
-}
-
 export function getFromDate(preset: TimeRange): Date {
   const now = new Date()
   switch (preset) {

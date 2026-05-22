@@ -105,29 +105,29 @@ async function upsertRows(supabase, date, totals, counts) {
   return rows.length;
 }
 
+async function ingestArchive(date) {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY');
+  }
+  const { totals, counts, totalRows, skippedRows } = await downloadAndAggregate(date);
+  const stationCount = Object.keys(totals).length;
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  const upserted = await upsertRows(supabase, date, totals, counts);
+  return { upserted, totalRows, skippedRows, stationCount };
+}
+
 async function main() {
   const start = Date.now();
-
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-    console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY');
-    process.exit(1);
-  }
 
   const date = getTargetDate();
   console.log(`Date:       ${date}`);
   console.log(`Downloading EA archive CSV...`);
 
-  const { totals, counts, totalRows, skippedRows } = await downloadAndAggregate(date);
-  const stationCount = Object.keys(totals).length;
+  const { upserted, totalRows, skippedRows, stationCount } = await ingestArchive(date);
 
   console.log(`Rows read:  ${totalRows}`);
   console.log(`Rows skipped: ${skippedRows}`);
   console.log(`Stations:   ${stationCount}`);
-  console.log(`Upserting to Supabase...`);
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-  const upserted = await upsertRows(supabase, date, totals, counts);
-
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
   console.log(`Done.       ${upserted} stations upserted in ${elapsed}s`);
 }
@@ -139,4 +139,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { processRow, buildUpsertRows };
+module.exports = { processRow, buildUpsertRows, ingestArchive };

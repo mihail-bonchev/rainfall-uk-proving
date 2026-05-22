@@ -28,6 +28,27 @@ describe('TimeRangeControl', () => {
     expect(screen.getByTestId('time-range-control')).toBeInTheDocument()
   })
 
+  it('shows freshness caveat for 7d', () => {
+    render(<TimeRangeControl value="7d" onChange={vi.fn()} />)
+    expect(screen.getByTestId('freshness-caveat')).toBeInTheDocument()
+    expect(screen.getByTestId('freshness-caveat').textContent).toMatch(
+      /^Data complete to midnight \d{1,2} \w+ \d{4}$/,
+    )
+  })
+
+  it('shows freshness caveat for 28d', () => {
+    render(<TimeRangeControl value="28d" onChange={vi.fn()} />)
+    expect(screen.getByTestId('freshness-caveat')).toBeInTheDocument()
+  })
+
+  it('hides freshness caveat for live ranges', () => {
+    for (const range of ['15m', '6h', '24h'] as const) {
+      const { unmount } = render(<TimeRangeControl value={range} onChange={vi.fn()} />)
+      expect(screen.queryByTestId('freshness-caveat')).not.toBeInTheDocument()
+      unmount()
+    }
+  })
+
   it('clicking Custom opens the date range picker popover', async () => {
     render(<TimeRangeControl value="15m" onChange={vi.fn()} />)
     fireEvent.click(screen.getByTestId('custom-range-trigger'))

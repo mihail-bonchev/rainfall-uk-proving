@@ -41,7 +41,7 @@ function App() {
         open={showRegionalPanel}
         onClose={() => setShowRegionalPanel(false)}
         timeRange={timeRange}
-        customRange={customRange}
+        readingsMap={readingsMap}
         onDownloadCsv={(areas) => downloadRegionalCsv(areas, timeRange, customRange)}
       />
       <TimeRangeControl

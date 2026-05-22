@@ -1,48 +1,39 @@
 import type { Station } from '../api/stationService'
 
-export interface StationTotal {
-  stationRef: string
-  totalMm: number
-}
-
 export interface AreaSummary {
   areaName: string
-  totalMm: number
   avgMm: number
   maxMm: number
   stationCount: number
   stationsWithData: number
 }
 
-export function aggregateByArea(stationTotals: StationTotal[], stations: Station[]): AreaSummary[] {
-  const stationMap = new Map(stations.map((s) => [s.id, s]))
+const CAP_MM = 500
 
-  const areas = new Map<
-    string,
-    { stationCount: number; totals: number[] }
-  >()
+export function aggregateByArea(
+  readingsMap: Map<string, number>,
+  stations: Station[],
+): AreaSummary[] {
+  const areas = new Map<string, { stationCount: number; cappedTotals: number[] }>()
 
   for (const station of stations) {
-    const area = areas.get(station.eaAreaName) ?? { stationCount: 0, totals: [] }
+    if (!areas.has(station.eaAreaName)) {
+      areas.set(station.eaAreaName, { stationCount: 0, cappedTotals: [] })
+    }
+    const area = areas.get(station.eaAreaName)!
     area.stationCount++
-    areas.set(station.eaAreaName, area)
-  }
-
-  for (const { stationRef, totalMm } of stationTotals) {
-    const station = stationMap.get(stationRef)
-    if (!station) continue
-    const area = areas.get(station.eaAreaName)
-    if (!area) continue
-    area.totals.push(totalMm)
+    if (readingsMap.has(station.id)) {
+      area.cappedTotals.push(Math.min(readingsMap.get(station.id)!, CAP_MM))
+    }
   }
 
   return [...areas.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([areaName, { stationCount, totals }]) => {
-      const stationsWithData = totals.length
-      const totalMm = totals.reduce((sum, v) => sum + v, 0)
-      const avgMm = stationsWithData > 0 ? totalMm / stationsWithData : 0
-      const maxMm = stationsWithData > 0 ? Math.max(...totals) : 0
-      return { areaName, totalMm, avgMm, maxMm, stationCount, stationsWithData }
+    .map(([areaName, { stationCount, cappedTotals }]) => {
+      const stationsWithData = cappedTotals.length
+      const avgMm =
+        stationsWithData > 0 ? cappedTotals.reduce((s, v) => s + v, 0) / stationsWithData : 0
+      const maxMm = stationsWithData > 0 ? Math.max(...cappedTotals) : 0
+      return { areaName, avgMm, maxMm, stationCount, stationsWithData }
     })
 }

@@ -3,6 +3,10 @@ import App from './App'
 import { renderWithProviders } from './test/utils'
 import * as stationStore from './services/db/stationStore'
 
+vi.mock('./services/db/supabaseClient', () => ({
+  supabase: { from: vi.fn() },
+}))
+
 const mockGetMap = vi.fn(() => ({
   on: vi.fn(),
   off: vi.fn(),

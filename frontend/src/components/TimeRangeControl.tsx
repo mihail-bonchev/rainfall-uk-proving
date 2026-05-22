@@ -18,7 +18,15 @@ interface Props {
   onCustomRange?: (range: DateRange) => void
 }
 
+function yesterdayUTC(): string {
+  const d = new Date()
+  d.setUTCDate(d.getUTCDate() - 1)
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+}
+
 export function TimeRangeControl({ value, onChange, customRange, onCustomRange }: Props) {
+  const showCaveat = value === '7d' || value === '28d'
+
   return (
     <div
       data-testid="time-range-control"
@@ -29,28 +37,38 @@ export function TimeRangeControl({ value, onChange, customRange, onCustomRange }
         transform: 'translateX(-50%)',
         zIndex: 10,
       }}
-      className="flex gap-1 bg-white/90 backdrop-blur-sm rounded-xl px-2 py-1 shadow-md overflow-x-auto max-w-[calc(100vw-32px)]"
+      className="flex flex-col items-center bg-white/90 backdrop-blur-sm rounded-xl px-2 py-1 shadow-md max-w-[calc(100vw-32px)]"
     >
-      {PRESETS.map((preset) => (
-        <Button
-          key={preset.value}
-          variant={value === preset.value ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => onChange(preset.value)}
-          aria-pressed={value === preset.value}
-          className="whitespace-nowrap"
+      <div className="flex gap-1 overflow-x-auto w-full">
+        {PRESETS.map((preset) => (
+          <Button
+            key={preset.value}
+            variant={value === preset.value ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => onChange(preset.value)}
+            aria-pressed={value === preset.value}
+            className="whitespace-nowrap"
+          >
+            {preset.label}
+          </Button>
+        ))}
+        <DateRangePicker
+          value={value === 'custom' ? customRange : undefined}
+          isActive={value === 'custom'}
+          onChange={(range) => {
+            onChange('custom')
+            onCustomRange?.(range)
+          }}
+        />
+      </div>
+      {showCaveat && (
+        <p
+          data-testid="freshness-caveat"
+          className="text-xs text-muted-foreground mt-0.5 whitespace-nowrap"
         >
-          {preset.label}
-        </Button>
-      ))}
-      <DateRangePicker
-        value={value === 'custom' ? customRange : undefined}
-        isActive={value === 'custom'}
-        onChange={(range) => {
-          onChange('custom')
-          onCustomRange?.(range)
-        }}
-      />
+          Data complete to midnight {yesterdayUTC()}
+        </p>
+      )}
     </div>
   )
 }
