@@ -17,22 +17,17 @@ export function useHistoricalReadings(
   return useQuery<Map<string, number>>({
     queryKey: ['historical-readings', timeRange, startDateStr],
     queryFn: async () => {
-      // 900 stations × 28 days = 25,200 rows max. PostgREST defaults to 1,000 rows,
-      // which silently truncates to ~1 day of data. The explicit limit covers the full window.
+      // Server-side SUM+GROUP BY via RPC: returns one row per station (~900 rows),
+      // avoiding PostgREST's 1000-row default which truncated the raw station-day table.
       const { data, error } = await supabase
-        .from('station_daily_totals')
-        .select('station_ref, total_mm')
-        .gte('date', startDateStr)
-        .lt('date', todayStr)
-        .limit(30000)
+        .rpc('get_station_totals', { p_start: startDateStr, p_end: todayStr })
 
       if (error) throw new Error(error.message)
 
       const readingsMap = new Map<string, number>()
       for (const row of data ?? []) {
-        // PostgREST returns NUMERIC columns as strings — explicit coercion prevents
-        // string concatenation across multiple daily rows.
-        readingsMap.set(row.station_ref, (readingsMap.get(row.station_ref) ?? 0) + Number(row.total_mm))
+        // PostgREST returns NUMERIC columns as strings — coerce explicitly.
+        readingsMap.set(row.station_ref, Number(row.total_mm))
       }
       return readingsMap
     },

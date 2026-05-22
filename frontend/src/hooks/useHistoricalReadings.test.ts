@@ -3,15 +3,11 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { useHistoricalReadings } from './useHistoricalReadings'
 import { makeWrapper } from '../test/utils'
 
-const mockLt = vi.hoisted(() => vi.fn())
+const mockRpc = vi.hoisted(() => vi.fn())
 
 vi.mock('../services/db/supabaseClient', () => ({
   supabase: {
-    from: () => ({
-      select: () => ({
-        gte: () => ({ lt: () => ({ limit: mockLt }) }),
-      }),
-    }),
+    rpc: mockRpc,
   },
 }))
 
@@ -20,11 +16,11 @@ beforeEach(() => {
 })
 
 describe('useHistoricalReadings', () => {
-  it('sums multiple daily rows per station into a single total', async () => {
-    mockLt.mockResolvedValueOnce({
+  it('returns a Map of stationRef → summed total from server-side GROUP BY', async () => {
+    // RPC returns one pre-summed row per station — no client-side accumulation needed.
+    mockRpc.mockResolvedValueOnce({
       data: [
-        { station_ref: 'E0001', total_mm: '5.50' },
-        { station_ref: 'E0001', total_mm: '2.00' },
+        { station_ref: 'E0001', total_mm: '7.50' },
         { station_ref: 'E0002', total_mm: '10.00' },
       ],
       error: null,
@@ -38,14 +34,11 @@ describe('useHistoricalReadings', () => {
     expect(result.current.data?.get('E0002')).toBeCloseTo(10.0)
   })
 
-  it('coerces PostgREST string-typed NUMERIC values to numbers (prevents string concatenation)', async () => {
-    // PostgREST returns NUMERIC columns as strings. Without Number() coercion,
-    // `0 + '5.50'` = `'05.50'` and accumulating 28 rows gives an unparseable string → NaN.
-    mockLt.mockResolvedValueOnce({
+  it('coerces PostgREST string-typed NUMERIC values to numbers', async () => {
+    // PostgREST returns NUMERIC columns (including aggregates) as strings.
+    mockRpc.mockResolvedValueOnce({
       data: [
-        { station_ref: 'E0001', total_mm: '5.50' },
-        { station_ref: 'E0001', total_mm: '2.00' },
-        { station_ref: 'E0001', total_mm: '1.10' },
+        { station_ref: 'E0001', total_mm: '8.60' },
         { station_ref: 'E0002', total_mm: '10.30' },
       ],
       error: null,
@@ -60,7 +53,7 @@ describe('useHistoricalReadings', () => {
   })
 
   it('returns an empty map when no data is returned', async () => {
-    mockLt.mockResolvedValueOnce({ data: [], error: null })
+    mockRpc.mockResolvedValueOnce({ data: [], error: null })
 
     const { result } = renderHook(() => useHistoricalReadings('28d'), { wrapper: makeWrapper() })
 
@@ -70,7 +63,7 @@ describe('useHistoricalReadings', () => {
   })
 
   it('enters error state when Supabase returns an error', async () => {
-    mockLt.mockResolvedValueOnce({ data: null, error: { message: 'DB error' } })
+    mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'DB error' } })
 
     const { result } = renderHook(() => useHistoricalReadings('7d'), { wrapper: makeWrapper() })
 
@@ -87,6 +80,6 @@ describe('useHistoricalReadings', () => {
 
     expect(result.current.isSuccess).toBe(false)
     expect(result.current.fetchStatus).toBe('idle')
-    expect(mockLt).not.toHaveBeenCalled()
+    expect(mockRpc).not.toHaveBeenCalled()
   })
 })
