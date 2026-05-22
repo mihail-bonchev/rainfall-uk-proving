@@ -1,0 +1,14 @@
+{
+  "name": "rainfall-ingest",
+  "version": "1.0.0",
+  "description": "Daily EA archive ingest to Supabase",
+  "main": "ingest_archive.js",
+  "scripts": {
+    "start": "node ingest_archive.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "csv-parse": "^5.5.0",
+    "dotenv": "^16.4.0"
+  }
+}
