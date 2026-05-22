@@ -6,15 +6,16 @@ import type { Point } from 'geojson'
 import { useStations, toGeoJSON } from '../hooks/useStations'
 import type { TimeRange } from '../types/api'
 
-// Calibrated to the ~10% time-of-day sample our multi-day fetch captures.
-// e.g. 7d: typical UK week ~30–50 mm actual → ~3–5 mm sampled → max=8 covers heavy rain.
+// Expected full-period totals for "heavy but not extreme" UK rain.
+// These are normalised values (avg-per-reading × expected-intervals) so they
+// represent realistic mm totals, not undersampled partials.
 const PERIOD_MAX_MM: Record<TimeRange, number> = {
   '15m':    2,
-  '6h':     4,
-  '24h':    6,
-  '7d':     8,
-  '28d':    12,
-  'custom': 8,
+  '6h':     15,
+  '24h':    40,
+  '7d':     80,
+  '28d':    200,
+  'custom': 40,
 }
 
 // Met Office colour scale — used on individual station circles at high zoom.
@@ -40,52 +41,53 @@ function makeHeatmapLayer(timeRange: TimeRange): LayerProps {
     type: 'heatmap',
     maxzoom: 13,
     paint: {
-      // Weight: 0 mm = 0 (no contribution). Any real rainfall scales up sharply.
-      // Max weight capped at 0.9 so single stations don't instantly saturate to red —
-      // areas with multiple heavy stations will push the combined density to 1.0.
+      // Input is clamped to [0, maxMm] so the interpolation never extrapolates
+      // beyond weight=0.9 — without this a single outlier station (e.g. 200 mm
+      // in a flooded gauge) drives weight >> 1 and creates a lone red hot spot.
       'heatmap-weight': [
         'interpolate', ['linear'],
-        ['max', ['get', 'rainfall_mm'], 0],
+        ['min', ['max', ['get', 'rainfall_mm'], 0], maxMm],
         0,           0,
-        0.05,        0.08,
-        maxMm * 0.1, 0.35,
-        maxMm * 0.5, 0.72,
+        0.5,         0.05,
+        maxMm * 0.1, 0.25,
+        maxMm * 0.3, 0.55,
+        maxMm * 0.6, 0.75,
         maxMm,       0.9,
       ] as ExpressionSpecification,
 
-      // Moderate intensity — keeps colours diffuse so nearby stations blend
-      // rather than each one peaking at red with a hard gradient ring.
+      // Lower intensity keeps individual stations from saturating on their own;
+      // a cluster of nearby wet stations accumulates to reach warm colours.
       'heatmap-intensity': [
         'interpolate', ['linear'], ['zoom'],
-        4,  0.7,
-        7,  1.3,
+        4,  0.6,
+        7,  1.2,
         10, 2.5,
       ] as ExpressionSpecification,
 
-      // Met Office palette applied to the density field.
+      // Met Office palette on the density field.
       'heatmap-color': [
         'interpolate', ['linear'],
         ['heatmap-density'],
         0,    'rgba(0,0,0,0)',
-        0.08, 'rgba(168,213,245,0.6)',
+        0.05, 'rgba(168,213,245,0.2)',
         0.2,  '#a8d5f5',
-        0.35, '#50c8f4',
-        0.5,  '#00a651',
-        0.65, '#fff200',
-        0.8,  '#ff7f00',
+        0.4,  '#50c8f4',
+        0.55, '#00a651',
+        0.7,  '#fff200',
+        0.85, '#ff7f00',
         1,    '#e8001d',
       ] as ExpressionSpecification,
 
-      // Small-ish radius: shows geographic structure (not one big blob) at country
-      // zoom, while still merging nearby stations at local zoom.
+      // Large radius at country zoom so adjacent stations overlap and form
+      // continuous regional blobs rather than isolated dots.
       'heatmap-radius': [
         'interpolate', ['linear'], ['zoom'],
-        4,  18,
-        5,  22,
-        6,  28,
-        7,  35,
-        8,  30,
-        9,  22,
+        4,  60,
+        5,  75,
+        6,  70,
+        7,  55,
+        8,  40,
+        9,  25,
         10, 15,
         12, 8,
       ] as ExpressionSpecification,

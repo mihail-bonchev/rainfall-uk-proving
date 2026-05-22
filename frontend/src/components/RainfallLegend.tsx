@@ -1,14 +1,13 @@
 import type { TimeRange } from '../types/api'
 
-// "Heavy rain" thresholds per period — match PERIOD_MAX_MM in StationsSource.
-// These are the values that saturate the heatmap to full red.
+// Must match PERIOD_MAX_MM in StationsSource exactly — both use normalised totals.
 const PERIOD_MAX_MM: Record<TimeRange, number> = {
   '15m':    2,
-  '6h':     4,
-  '24h':    6,
-  '7d':     10,
-  '28d':    25,
-  'custom': 8,
+  '6h':     15,
+  '24h':    40,
+  '7d':     80,
+  '28d':    200,
+  'custom': 40,
 }
 
 const PERIOD_LABELS: Record<TimeRange, string> = {

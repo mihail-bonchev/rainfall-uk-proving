@@ -18,7 +18,7 @@ import type { TimeRange } from './types/api'
 function App() {
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null)
   const [showRegionalPanel, setShowRegionalPanel] = useState(false)
-  const [timeRange, setTimeRange] = useState<TimeRange>('15m')
+  const [timeRange, setTimeRange] = useState<TimeRange>('7d')
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
   const handleStationClick = useCallback((id: string) => setSelectedStationId(id), [])
 

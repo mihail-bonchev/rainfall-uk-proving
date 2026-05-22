@@ -3,7 +3,7 @@ import type { DateRange } from 'react-day-picker'
 import type { TimeRange } from '../types/api'
 import { fetchLatestReadings, fetchReadings } from '../services/api/readingService'
 import { upsertReadings } from '../services/db/readingStore'
-import { getDateRangeForPreset, getDateRangeForCustom } from '../utils/dateUtils'
+import { getDateRangeForPreset, getDateRangeForCustom, getExpectedIntervals } from '../utils/dateUtils'
 
 export function useLatestReadings(timeRange: TimeRange, customRange?: DateRange) {
   return useQuery<Map<string, number>>({
@@ -20,9 +20,37 @@ export function useLatestReadings(timeRange: TimeRange, customRange?: DateRange)
 
       await upsertReadings(readings)
 
-      const readingsMap = new Map<string, number>()
+      // For 15m we use the raw latest reading value per station directly.
+      // For all other ranges we normalise: avg-per-reading × expected-intervals.
+      // This removes sampling bias caused by different stations having different
+      // numbers of readings in our per-day 10k-limit sample window.
+      if (timeRange === '15m') {
+        const readingsMap = new Map<string, number>()
+        for (const r of readings) {
+          readingsMap.set(r.stationRef, r.value)
+        }
+        return readingsMap
+      }
+
+      const totals = new Map<string, number>()
+      const counts = new Map<string, number>()
       for (const r of readings) {
-        readingsMap.set(r.stationRef, (readingsMap.get(r.stationRef) ?? 0) + r.value)
+        totals.set(r.stationRef, (totals.get(r.stationRef) ?? 0) + r.value)
+        counts.set(r.stationRef, (counts.get(r.stationRef) ?? 0) + 1)
+      }
+
+      let expectedIntervals: number
+      if (timeRange === 'custom' && customRange?.from && customRange?.to) {
+        const diffHours = (customRange.to.getTime() - customRange.from.getTime()) / 3_600_000
+        expectedIntervals = Math.max(1, Math.round(diffHours * 4))
+      } else {
+        expectedIntervals = getExpectedIntervals(timeRange)
+      }
+
+      const readingsMap = new Map<string, number>()
+      for (const [stationRef, total] of totals) {
+        const count = counts.get(stationRef) ?? 1
+        readingsMap.set(stationRef, (total / count) * expectedIntervals)
       }
       return readingsMap
     },
