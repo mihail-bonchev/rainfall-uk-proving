@@ -148,4 +148,9 @@ See `spec/implementation-plan.md` for full download URL.
 
 ## Environment Variables
 
-`.env.example` documents all vars. Frontend uses `VITE_`-prefixed vars.
+| File | Used by | Contains |
+|---|---|---|
+| `frontend/.env` | Vite / Vercel | `VITE_API_BASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, feature flags |
+| `ingest/.env` | Railway cron | `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` |
+
+Both are gitignored. Copy the `.env.example` in each subdirectory and fill in real values. Never put `SUPABASE_SERVICE_KEY` in the frontend.
