@@ -59,7 +59,7 @@ function getTargetDate() {
 }
 
 function downloadAndAggregate(date) {
-  const url = `https://environment.data.gov.uk/flood-monitoring/archive/readings-full-${date}.csv`;
+  const url = `https://environment.data.gov.uk/flood-monitoring/archive/readings-${date}.csv`;
 
   return new Promise((resolve, reject) => {
     https.get(url, (response) => {
