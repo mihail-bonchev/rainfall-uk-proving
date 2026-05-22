@@ -172,6 +172,31 @@ CREATE INDEX ON station_daily_totals (date);
 - **60 days** currently populated (as of May 2026); grows by one day each morning
 - Frontend queries via Supabase JS client with `anon` key (read-only RLS)
 
+### Supabase / PostgREST gotchas — read before touching DB queries
+
+**1. NUMERIC columns come back as strings.**
+PostgREST serialises PostgreSQL `NUMERIC`/`DECIMAL` as JSON strings, not numbers. `0 + '1.20'` in JavaScript is `'01.20'` (string concat), not `1.20`. Always coerce: `Number(row.total_mm)`. This applies to aggregate results too.
+
+**2. PostgREST default row limit is 1,000.**
+A plain `.select()` on `station_daily_totals` for a 28-day window needs ~25,200 rows (900 stations × 28 days) but PostgREST silently returns only the first 1,000. Never query raw station-day rows from the frontend — use the RPC instead.
+
+**3. Use the `get_station_totals` RPC for 7d/28d aggregation.**
+The function runs `SELECT station_ref, SUM(total_mm) … GROUP BY station_ref` server-side and returns ~900 rows (one per station), well within any limit. It lives in `useHistoricalReadings.ts` as `supabase.rpc('get_station_totals', { p_start, p_end })`.
+
+```sql
+-- Definition (already created in Supabase):
+CREATE OR REPLACE FUNCTION get_station_totals(p_start date, p_end date)
+RETURNS TABLE(station_ref text, total_mm numeric)
+LANGUAGE sql STABLE
+AS $$
+  SELECT station_ref, SUM(total_mm)
+  FROM station_daily_totals
+  WHERE date >= p_start AND date < p_end
+  GROUP BY station_ref;
+$$;
+-- anon role has EXECUTE granted
+```
+
 ## Map Architecture (Frontend)
 
 Three layers driven by MapLibre zoom expressions (no React re-renders):
@@ -226,9 +251,17 @@ See `spec/implementation-plan.md` for full download URL.
 
 | Layer | Platform | Notes |
 |---|---|---|
-| Frontend | Vercel | Domain: `rain.xelantis.com`; auto-deploys from `main` |
+| Frontend | Vercel | Domain: `rain.xelantis.com`; **manual deploy — git push does NOT auto-deploy** |
 | Archive cron | Railway | Cron Job; runs `node ingest/ingest_archive.js` daily at 02:00 UTC |
 | Database | Supabase | PostgreSQL; anon key for reads, service key for cron writes |
+
+### Deploying the frontend
+
+Git push to `main` triggers CI (lint → test → build) but does **not** deploy to Vercel. Vercel is wired to the CLI, not GitHub auto-deploy. After pushing, always run:
+
+```bash
+cd frontend && vercel --prod
+```
 
 ## Environment Variables
 
