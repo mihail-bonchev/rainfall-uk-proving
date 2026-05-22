@@ -27,7 +27,7 @@ export function useHistoricalReadings(
 
       const readingsMap = new Map<string, number>()
       for (const row of data ?? []) {
-        readingsMap.set(row.station_ref, (readingsMap.get(row.station_ref) ?? 0) + row.total_mm)
+        readingsMap.set(row.station_ref, (readingsMap.get(row.station_ref) ?? 0) + Number(row.total_mm))
       }
       return readingsMap
     },
