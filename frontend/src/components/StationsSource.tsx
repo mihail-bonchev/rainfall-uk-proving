@@ -39,11 +39,8 @@ function makeHeatmapLayer(timeRange: TimeRange): LayerProps {
   return {
     id: 'rainfall-heat',
     type: 'heatmap',
-    maxzoom: 13,
+    maxzoom: 15,
     paint: {
-      // Input is clamped to [0, maxMm] so the interpolation never extrapolates
-      // beyond weight=0.9 — without this a single outlier station (e.g. 200 mm
-      // in a flooded gauge) drives weight >> 1 and creates a lone red hot spot.
       'heatmap-weight': [
         'interpolate', ['linear'],
         ['min', ['max', ['get', 'rainfall_mm'], 0], maxMm],
@@ -55,53 +52,89 @@ function makeHeatmapLayer(timeRange: TimeRange): LayerProps {
         maxMm,       0.9,
       ] as ExpressionSpecification,
 
-      // Lower intensity keeps individual stations from saturating on their own;
-      // a cluster of nearby wet stations accumulates to reach warm colours.
+      // Reduced intensity so moderate rainfall stays blue rather than
+      // saturating into orange/red. Warm colours should only emerge where
+      // rainfall is genuinely high relative to the period max.
       'heatmap-intensity': [
         'interpolate', ['linear'], ['zoom'],
-        4,  0.6,
-        7,  1.2,
-        10, 2.5,
+        4,  0.35,
+        7,  0.65,
+        10, 1.1,
+        13, 1.4,
       ] as ExpressionSpecification,
 
-      // Met Office palette on the density field.
+      // Blue-dominant palette: warm colours only above density 0.7 so the
+      // map reads blue/teal for typical rainfall and orange/red for extremes.
       'heatmap-color': [
         'interpolate', ['linear'],
         ['heatmap-density'],
         0,    'rgba(0,0,0,0)',
         0.05, 'rgba(168,213,245,0.2)',
         0.2,  '#a8d5f5',
-        0.4,  '#50c8f4',
-        0.55, '#00a651',
-        0.7,  '#fff200',
-        0.85, '#ff7f00',
+        0.42, '#50c8f4',
+        0.62, '#00a651',
+        0.74, '#fff200',
+        0.87, '#ff7f00',
         1,    '#e8001d',
       ] as ExpressionSpecification,
 
-      // Large radius at country zoom so adjacent stations overlap and form
-      // continuous regional blobs rather than isolated dots.
+      // Keep radius large at close zoom so stations cover their surrounding
+      // area and the heatmap stays continuous (no isolated dot effect).
       'heatmap-radius': [
         'interpolate', ['linear'], ['zoom'],
-        4,  60,
-        5,  75,
-        6,  70,
-        7,  55,
-        8,  40,
-        9,  25,
-        10, 15,
-        12, 8,
+        4,  65,
+        5,  80,
+        6,  75,
+        7,  60,
+        8,  55,
+        9,  50,
+        10, 60,
+        11, 75,
+        12, 85,
+        13, 85,
       ] as ExpressionSpecification,
 
-      // Fade out cleanly as station circles take over from zoom 10.
+      // Stay visible deep into close zoom — station circles complement rather
+      // than replace the heatmap, so the gradient coverage persists.
       'heatmap-opacity': [
         'interpolate', ['linear'], ['zoom'],
-        4,  0.9,
-        9,  0.85,
-        11, 0.3,
-        13, 0,
+        4,   0.9,
+        9,   0.85,
+        11,  0.65,
+        12,  0.45,
+        14,  0.1,
+        15,  0,
       ] as ExpressionSpecification,
     },
   }
+}
+
+// Large blurred circles that "spread" each station's rainfall over its surrounding
+// area at close zoom, bridging the gap as the heatmap fades out. circle-blur: 1
+// means the circle fades from solid at the centre to transparent at the edge.
+const stationCoverageLayer: LayerProps = {
+  id: 'station-coverage',
+  type: 'circle',
+  minzoom: 9,
+  filter: ['!', ['has', 'point_count']],
+  paint: {
+    'circle-color': RAINFALL_COLOUR_SCALE,
+    'circle-radius': [
+      'interpolate', ['linear'], ['zoom'],
+      9,  35,
+      11, 65,
+      13, 95,
+    ],
+    'circle-opacity': [
+      'interpolate', ['linear'], ['zoom'],
+      9,  0,
+      10, 0.18,
+      12, 0.14,
+      14, 0.08,
+    ],
+    'circle-blur': 1,
+    'circle-stroke-width': 0,
+  },
 }
 
 // Individual station circles — visible from zoom 9, replace the heatmap at high zoom.
@@ -187,6 +220,7 @@ export function StationsSource({ onStationClick, readingsMap = new Map(), timeRa
           not cluster centroids — clustering was causing one-blob-per-cluster at low zoom */}
       <Source id="stations" type="geojson" data={geoJSON}>
         <Layer {...makeHeatmapLayer(timeRange)} />
+        <Layer {...stationCoverageLayer} />
         <Layer {...stationCircleLayer} />
       </Source>
       {tooltip && (

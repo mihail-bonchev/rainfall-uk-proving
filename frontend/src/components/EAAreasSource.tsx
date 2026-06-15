@@ -28,35 +28,23 @@ const CHOROPLETH_COLOUR: ExpressionSpecification = [
   50,  '#9b0026',
 ]
 
-const fillLayer: LayerProps = {
-  id: 'ea-areas-fill',
-  type: 'fill',
-  maxzoom: 9,
-  paint: {
-    'fill-color': CHOROPLETH_COLOUR,
-    'fill-opacity': [
-      'interpolate', ['linear'], ['zoom'],
-      4,   0,
-      5,   0.75,
-      7,   0.75,
-      8.5, 0,
-    ] as ExpressionSpecification,
-  },
-}
+// Choropleth fill removed — it painted each EA region with a flat uniform colour,
+// creating hard administrative boundaries that fight the heatmap's smooth gradients.
+// The heatmap handles all density colouring from actual station data.
 
 const outlineLayer: LayerProps = {
   id: 'ea-areas-outline',
   type: 'line',
-  maxzoom: 9,
+  maxzoom: 7,
   paint: {
     'line-color': '#ffffff',
-    'line-width': 1,
+    'line-width': 0.5,
     'line-opacity': [
       'interpolate', ['linear'], ['zoom'],
-      5, 0.6,
-      8, 0,
+      5, 0.15,
+      7, 0,
     ] as ExpressionSpecification,
-    'line-dasharray': [3, 2],
+    'line-dasharray': [4, 3],
   },
 }
 
@@ -99,7 +87,6 @@ export function EAAreasSource({ readingsMap = new Map(), timeRange: _timeRange, 
 
   return (
     <Source id="ea-areas" type="geojson" data={enrichedGeoJSON}>
-      <Layer {...fillLayer} />
       <Layer {...outlineLayer} />
     </Source>
   )
