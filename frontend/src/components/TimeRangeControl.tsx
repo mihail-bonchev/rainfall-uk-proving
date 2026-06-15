@@ -37,7 +37,7 @@ export function TimeRangeControl({ value, onChange, customRange, onCustomRange }
         transform: 'translateX(-50%)',
         zIndex: 10,
       }}
-      className="flex flex-col items-center bg-white/90 backdrop-blur-sm rounded-xl px-2 py-1 shadow-md max-w-[calc(100vw-32px)]"
+      className="flex flex-col items-center bg-slate-900/85 backdrop-blur-sm rounded-xl px-2 py-1 shadow-md max-w-[calc(100vw-32px)]"
     >
       <div className="flex gap-1 overflow-x-auto w-full">
         {PRESETS.map((preset) => (
@@ -64,7 +64,7 @@ export function TimeRangeControl({ value, onChange, customRange, onCustomRange }
       {showCaveat && (
         <p
           data-testid="freshness-caveat"
-          className="text-xs text-muted-foreground mt-0.5 whitespace-nowrap"
+          className="text-xs text-slate-400 mt-0.5 whitespace-nowrap"
         >
           Data complete to midnight {yesterdayUTC()}
         </p>

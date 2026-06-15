@@ -32,9 +32,9 @@ export function SyncStatus({ dataUpdatedAt, isError }: Props) {
     <div
       data-testid="sync-status"
       style={{ position: 'absolute', top: 56, right: 16, zIndex: 10 }}
-      className="bg-white/80 backdrop-blur-sm rounded-lg px-2 py-1 shadow-sm"
+      className="bg-slate-900/80 backdrop-blur-sm rounded-lg px-2 py-1 shadow-sm"
     >
-      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-xs text-slate-400">{label}</span>
     </div>
   )
 }

@@ -79,6 +79,8 @@ function App() {
           zoom: 5.5,
         }}
         style={{ position: 'absolute', inset: 0 }}
+        minZoom={4.5}
+        maxZoom={10}
         scrollZoom
         dragPan
         touchZoomRotate

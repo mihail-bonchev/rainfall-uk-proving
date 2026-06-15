@@ -87,32 +87,35 @@ function makeHeatmapLayer(timeRange: TimeRange): LayerProps {
         1.0,  '#69f0ae',
       ] as ExpressionSpecification,
 
-      // Higher opacity: dark background handles contrast, no need to let
-      // a white map show through.
-      // Large radius at country zoom fills coverage across England's station
-      // network; stays large through close zoom to keep coverage continuous.
+      // Three zoom levels — radius kept large enough at each level that
+      // adjacent station kernels overlap and fill coverage.
+      // Station spacing in pixels: zoom7=14px, zoom8=29px, zoom9=57px,
+      // zoom10=114px, zoom11=228px. Radius must exceed half-spacing.
+      // Level 1 (country, zoom 4-6): huge radius → continuous England blob.
+      // Level 2 (regional, zoom 7-9): hold radius large to bridge gaps.
+      // Level 3 (local, zoom 10+): heatmap fades; coverage circles take over.
       'heatmap-radius': [
         'interpolate', ['linear'], ['zoom'],
-        4,  70,
-        5,  65,
-        6,  52,
-        7,  44,
-        8,  52,
-        9,  58,
-        10, 65,
-        11, 75,
-        12, 80,
-        13, 80,
+        4,  80,
+        5,  80,
+        6,  80,
+        7,  80,
+        8,  90,
+        9,  90,
+        10, 100,
+        11, 110,
+        12, 110,
+        13, 110,
       ] as ExpressionSpecification,
 
       'heatmap-opacity': [
         'interpolate', ['linear'], ['zoom'],
         4,   0.88,
         9,   0.85,
-        11,  0.72,
-        12,  0.55,
-        14,  0.18,
-        15,  0,
+        10,  0.72,
+        11,  0.50,
+        12,  0.25,
+        13,  0,
       ] as ExpressionSpecification,
     },
   }
@@ -128,18 +131,23 @@ const stationCoverageLayer: LayerProps = {
   filter: ['!', ['has', 'point_count']],
   paint: {
     'circle-color': RAINFALL_COLOUR_SCALE,
+    // Radius must exceed half the station spacing to guarantee overlap.
+    // zoom10 spacing=114px → need >57px; zoom11 spacing=228px → need >114px.
     'circle-radius': [
       'interpolate', ['linear'], ['zoom'],
-      9,  35,
-      11, 65,
-      13, 95,
+      9,  60,
+      10, 90,
+      11, 130,
+      12, 150,
+      13, 150,
     ],
     'circle-opacity': [
       'interpolate', ['linear'], ['zoom'],
       9,  0,
-      10, 0.30,
-      12, 0.24,
-      14, 0.14,
+      10, 0.28,
+      11, 0.32,
+      12, 0.28,
+      13, 0.20,
     ],
     'circle-blur': 1,
     'circle-stroke-width': 0,
