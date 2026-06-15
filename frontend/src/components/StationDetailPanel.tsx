@@ -3,6 +3,9 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
+  BarChart,
+  Bar,
+  Cell,
   XAxis,
   YAxis,
   Tooltip,
@@ -14,11 +17,22 @@ import { Button } from './ui/button'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useStations } from '../hooks/useStations'
 import { getReadingsByStation } from '../services/db/readingStore'
+import { supabase } from '../services/db/supabaseClient'
 import type { TimeRange, Reading } from '../types/api'
+
+const PERIOD_TOTAL_LABEL: Record<TimeRange, string> = {
+  '15m': 'latest reading',
+  '6h': '6-hour total',
+  '24h': '24-hour total',
+  '7d': '7-day total',
+  '28d': '28-day total',
+  'custom': 'period total',
+}
 
 interface Props {
   stationId: string | null
   timeRange: TimeRange
+  readingsMap?: Map<string, number>
   onClose: () => void
   onViewAreaSummary?: (area: string) => void
 }
@@ -117,16 +131,57 @@ function useChartData(stationId: string | null, timeRange: TimeRange) {
   })
 }
 
+interface DailyPoint {
+  date: string
+  value: number
+}
+
+function useStationDailyTotals(stationId: string | null, timeRange: '7d' | '28d') {
+  const days = timeRange === '7d' ? 7 : 28
+  return useQuery<DailyPoint[]>({
+    queryKey: ['station-daily-totals', stationId, timeRange],
+    queryFn: async () => {
+      const today = new Date()
+      const todayStr = today.toISOString().slice(0, 10)
+      const start = new Date(today)
+      start.setUTCDate(start.getUTCDate() - days)
+      const startStr = start.toISOString().slice(0, 10)
+      const { data, error } = await supabase
+        .from('station_daily_totals')
+        .select('date, total_mm')
+        .eq('station_ref', stationId!)
+        .gte('date', startStr)
+        .lt('date', todayStr)
+        .order('date', { ascending: true })
+      if (error) throw new Error(error.message)
+      return (data ?? []).map((row) => ({ date: row.date as string, value: Number(row.total_mm) }))
+    },
+    enabled: !!stationId,
+    staleTime: 60 * 60 * 1000,
+  })
+}
+
 function xTickFormatter(dateTime: string): string {
   return new Date(dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
-export function StationDetailPanel({ stationId, timeRange, onClose, onViewAreaSummary }: Props) {
+function dateTickFormatter(date: string): string {
+  return new Date(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+}
+
+export function StationDetailPanel({ stationId, timeRange, readingsMap, onClose, onViewAreaSummary }: Props) {
   const isMobile = useIsMobile()
   const { data: stations = [] } = useStations()
   const station = stations.find((s) => s.id === stationId) ?? null
   const { data: reading } = useCurrentReading(stationId)
-  const { data: chartData = [] } = useChartData(stationId, timeRange)
+
+  const isHistorical = timeRange === '7d' || timeRange === '28d'
+  const periodTotal = stationId ? (readingsMap?.get(stationId) ?? null) : null
+  const { data: chartData = [] } = useChartData(isHistorical ? null : stationId, timeRange)
+  const { data: dailyData = [] } = useStationDailyTotals(
+    isHistorical ? stationId : null,
+    isHistorical ? timeRange : '7d',
+  )
 
   return (
     <Sheet open={!!stationId} onOpenChange={(open) => { if (!open) onClose() }}>
@@ -155,7 +210,21 @@ export function StationDetailPanel({ stationId, timeRange, onClose, onViewAreaSu
         </SheetHeader>
 
         <div className="px-4 py-3" data-testid="current-reading-section">
-          {reading === undefined ? null : reading === null ? (
+          {isHistorical ? (
+            periodTotal !== null ? (
+              <div data-testid="period-total">
+                <div
+                  className="text-3xl font-bold tabular-nums"
+                  style={{ color: getRainfallColour(periodTotal) }}
+                >
+                  {periodTotal.toFixed(1)} mm
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {PERIOD_TOTAL_LABEL[timeRange]}
+                </div>
+              </div>
+            ) : null
+          ) : reading === undefined ? null : reading === null ? (
             <p data-testid="no-recent-data" className="text-sm text-muted-foreground">
               No recent data
             </p>
@@ -204,35 +273,60 @@ export function StationDetailPanel({ stationId, timeRange, onClose, onViewAreaSu
         </SheetFooter>
 
         <div className="px-4" data-testid="chart-section">
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis
-                dataKey="dateTime"
-                tickFormatter={xTickFormatter}
-                tick={{ fontSize: 11 }}
-                minTickGap={40}
-              />
-              <YAxis
-                domain={[0, 'auto']}
-                tick={{ fontSize: 11 }}
-                width={32}
-                unit=" mm"
-              />
-              <Tooltip
-                formatter={(v: unknown) => [`${(v as number).toFixed(1)} mm`, 'Rainfall']}
-                labelFormatter={(t: unknown) => new Date(t as string).toLocaleString()}
-              />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="#50c8f4"
-                strokeWidth={2}
-                dot={false}
-                connectNulls={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          {isHistorical ? (
+            dailyData.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">No daily data available</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={dailyData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={dateTickFormatter}
+                    tick={{ fontSize: 11 }}
+                    minTickGap={timeRange === '28d' ? 28 : 16}
+                  />
+                  <YAxis domain={[0, 'auto']} tick={{ fontSize: 11 }} width={32} unit=" mm" />
+                  <Tooltip
+                    formatter={(v: unknown) => [`${(v as number).toFixed(1)} mm`, 'Daily total']}
+                    labelFormatter={(d: unknown) =>
+                      new Date(d as string).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+                    }
+                  />
+                  <Bar dataKey="value" radius={[2, 2, 0, 0]}>
+                    {dailyData.map((entry, i) => (
+                      <Cell key={i} fill={getRainfallColour(entry.value)} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis
+                  dataKey="dateTime"
+                  tickFormatter={xTickFormatter}
+                  tick={{ fontSize: 11 }}
+                  minTickGap={40}
+                />
+                <YAxis domain={[0, 'auto']} tick={{ fontSize: 11 }} width={32} unit=" mm" />
+                <Tooltip
+                  formatter={(v: unknown) => [`${(v as number).toFixed(1)} mm`, 'Rainfall']}
+                  labelFormatter={(t: unknown) => new Date(t as string).toLocaleString()}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#50c8f4"
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </SheetContent>
     </Sheet>

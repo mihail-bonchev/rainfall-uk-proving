@@ -1,1 +1,24 @@
 /* App-level styles — currently empty; map styles are in index.css */
+
+@keyframes loading-slide {
+  0%   { left: -45%; }
+  100% { left: 145%; }
+}
+
+.loading-bar-track {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 9999;
+  overflow: hidden;
+}
+
+.loading-bar-thumb {
+  position: absolute;
+  height: 100%;
+  width: 45%;
+  background: linear-gradient(to right, transparent, #38bdf8, #0ea5e9, #38bdf8, transparent);
+  animation: loading-slide 1.4s ease-in-out infinite;
+}

@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import './App.css'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import MapGL from 'react-map-gl/maplibre'
 import type { DateRange } from 'react-day-picker'
@@ -27,13 +28,20 @@ function App() {
     dataUpdatedAt,
     isError,
     failureCount,
+    isFetching,
   } = useLatestReadings(timeRange, customRange)
 
   return (
     <div data-testid="map-root" style={{ position: 'relative', width: '100vw', height: '100vh' }}>
+      {isFetching && (
+        <div className="loading-bar-track">
+          <div className="loading-bar-thumb" />
+        </div>
+      )}
       <StationDetailPanel
         stationId={selectedStationId}
         timeRange={timeRange}
+        readingsMap={readingsMap}
         onClose={() => setSelectedStationId(null)}
         onViewAreaSummary={() => setShowRegionalPanel(true)}
       />
