@@ -64,7 +64,7 @@ function App() {
         size="sm"
         onClick={() => setShowRegionalPanel(true)}
         style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}
-        className="bg-white/90 backdrop-blur-sm shadow-md"
+        className="bg-slate-900/85 backdrop-blur-sm shadow-md text-slate-100 border-slate-700 hover:bg-slate-800/90"
       >
         Regions
       </Button>
@@ -72,7 +72,7 @@ function App() {
       <SyncStatus dataUpdatedAt={dataUpdatedAt} isError={isError} />
       <OfflineBanner failureCount={failureCount} lastUpdatedAt={dataUpdatedAt} />
       <MapGL
-        mapStyle="https://tiles.openfreemap.org/styles/liberty"
+        mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
         initialViewState={{
           longitude: -2.8,
           latitude: 55.5,

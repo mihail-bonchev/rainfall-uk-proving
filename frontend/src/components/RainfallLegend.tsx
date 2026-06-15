@@ -35,12 +35,14 @@ export function RainfallLegend({ timeRange }: Props) {
   const breakpoints = [1, 0.8, 0.65, 0.5, 0.35, 0.2].map((f) => maxMm * f)
 
   const gradient = `linear-gradient(to top,
-    rgba(168,213,245,0.15) 0%,
-    #a8d5f5 18%,
-    #50c8f4 32%,
-    #00a651 48%,
-    #fff200 63%,
-    #ff7f00 78%,
+    rgba(197,229,247,0.4) 0%,
+    #c5e5f7 16%,
+    #7ec8e3 30%,
+    #50c8f4 44%,
+    #2980b9 58%,
+    #1a5276 70%,
+    #fff200 80%,
+    #ff7f00 90%,
     #e8001d 100%
   )`
 

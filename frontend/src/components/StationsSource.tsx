@@ -18,18 +18,20 @@ const PERIOD_MAX_MM: Record<TimeRange, number> = {
   'custom': 50,
 }
 
-// Met Office colour scale — used on individual station circles at high zoom.
+// BBC-style inverted scale for station circles and coverage blobs:
+// dark = dry, progressively lighter = wetter, bright green = extreme.
 const RAINFALL_COLOUR_SCALE: ExpressionSpecification = [
   'step',
   ['get', 'rainfall_mm'],
-  'rgba(180,180,180,0.5)', // grey — station present but no/zero reading
-  0.1, '#a8d5f5',
-  0.5, '#50c8f4',
-  2,   '#00a651',
-  5,   '#fff200',
-  10,  '#ff7f00',
-  20,  '#e8001d',
-  50,  '#9b0026',
+  'rgba(80,80,110,0.4)', // dark muted — station present but zero reading
+  0.1,  '#081b2e',
+  0.5,  '#0d3b6e',
+  2,    '#1565c0',
+  5,    '#1976d2',
+  10,   '#42a5f5',
+  20,   '#90caf9',
+  50,   '#e3f2fd',
+  100,  '#00e676',
 ]
 
 export { RAINFALL_COLOUR_SCALE }
@@ -41,68 +43,75 @@ function makeHeatmapLayer(timeRange: TimeRange): LayerProps {
     type: 'heatmap',
     maxzoom: 15,
     paint: {
+      // Low max weight so a single outlier doesn't force saturation;
+      // warmth must come from a local cluster of wet stations.
       'heatmap-weight': [
         'interpolate', ['linear'],
         ['min', ['max', ['get', 'rainfall_mm'], 0], maxMm],
         0,           0,
-        0.5,         0.05,
-        maxMm * 0.1, 0.25,
-        maxMm * 0.3, 0.55,
-        maxMm * 0.6, 0.75,
-        maxMm,       0.9,
+        0.5,         0.03,
+        maxMm * 0.1, 0.18,
+        maxMm * 0.3, 0.38,
+        maxMm * 0.6, 0.55,
+        maxMm,       0.68,
       ] as ExpressionSpecification,
 
-      // Reduced intensity so moderate rainfall stays blue rather than
-      // saturating into orange/red. Warm colours should only emerge where
-      // rainfall is genuinely high relative to the period max.
+      // Very low intensity at country zoom so overlapping kernels from
+      // England's dense station network don't saturate; ramps up at close
+      // zoom where fewer stations overlap.
       'heatmap-intensity': [
         'interpolate', ['linear'], ['zoom'],
-        4,  0.35,
-        7,  0.65,
-        10, 1.1,
-        13, 1.4,
+        4,  0.12,
+        6,  0.45,
+        8,  0.9,
+        10, 1.2,
+        13, 1.5,
       ] as ExpressionSpecification,
 
-      // Blue-dominant palette: warm colours only above density 0.7 so the
-      // map reads blue/teal for typical rainfall and orange/red for extremes.
+      // BBC-style inverted scale: dark background + more rain = lighter/brighter.
+      // Low density blends into the dark map; high density glows ice-blue/white.
+      // Green reserved for the very top 6% (extreme accumulation only).
       'heatmap-color': [
         'interpolate', ['linear'],
         ['heatmap-density'],
         0,    'rgba(0,0,0,0)',
-        0.05, 'rgba(168,213,245,0.2)',
-        0.2,  '#a8d5f5',
-        0.42, '#50c8f4',
-        0.62, '#00a651',
-        0.74, '#fff200',
-        0.87, '#ff7f00',
-        1,    '#e8001d',
+        0.05, '#081b2e',
+        0.18, '#0d3b6e',
+        0.32, '#1565c0',
+        0.46, '#1976d2',
+        0.58, '#42a5f5',
+        0.70, '#90caf9',
+        0.80, '#bbdefb',
+        0.88, '#e3f2fd',
+        0.94, '#00e676',
+        1.0,  '#69f0ae',
       ] as ExpressionSpecification,
 
-      // Keep radius large at close zoom so stations cover their surrounding
-      // area and the heatmap stays continuous (no isolated dot effect).
+      // Higher opacity: dark background handles contrast, no need to let
+      // a white map show through.
+      // Large radius at country zoom fills coverage across England's station
+      // network; stays large through close zoom to keep coverage continuous.
       'heatmap-radius': [
         'interpolate', ['linear'], ['zoom'],
-        4,  65,
-        5,  80,
-        6,  75,
-        7,  60,
-        8,  55,
-        9,  50,
-        10, 60,
+        4,  70,
+        5,  65,
+        6,  52,
+        7,  44,
+        8,  52,
+        9,  58,
+        10, 65,
         11, 75,
-        12, 85,
-        13, 85,
+        12, 80,
+        13, 80,
       ] as ExpressionSpecification,
 
-      // Stay visible deep into close zoom — station circles complement rather
-      // than replace the heatmap, so the gradient coverage persists.
       'heatmap-opacity': [
         'interpolate', ['linear'], ['zoom'],
-        4,   0.9,
+        4,   0.88,
         9,   0.85,
-        11,  0.65,
-        12,  0.45,
-        14,  0.1,
+        11,  0.72,
+        12,  0.55,
+        14,  0.18,
         15,  0,
       ] as ExpressionSpecification,
     },
@@ -128,9 +137,9 @@ const stationCoverageLayer: LayerProps = {
     'circle-opacity': [
       'interpolate', ['linear'], ['zoom'],
       9,  0,
-      10, 0.18,
-      12, 0.14,
-      14, 0.08,
+      10, 0.30,
+      12, 0.24,
+      14, 0.14,
     ],
     'circle-blur': 1,
     'circle-stroke-width': 0,
