@@ -58,6 +58,10 @@ function getTargetDate() {
   return yesterday.toISOString().slice(0, 10);
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function downloadAndAggregate(date) {
   const url = `https://environment.data.gov.uk/flood-monitoring/archive/readings-full-${date}.csv`;
 
@@ -121,9 +125,29 @@ async function main() {
 
   const date = getTargetDate();
   console.log(`Date:       ${date}`);
-  console.log(`Downloading EA archive CSV...`);
 
-  const { upserted, totalRows, skippedRows, stationCount } = await ingestArchive(date);
+  const MAX_ATTEMPTS = 3;
+  const RETRY_DELAY_MS = 10 * 60 * 1000; // 10 minutes
+  let lastErr;
+  let result;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    console.log(`Downloading EA archive CSV... (attempt ${attempt}/${MAX_ATTEMPTS})`);
+    try {
+      result = await ingestArchive(date);
+      break;
+    } catch (err) {
+      lastErr = err;
+      if (err.message.includes('HTTP 404') && attempt < MAX_ATTEMPTS) {
+        console.log(`Archive not yet available — retrying in ${RETRY_DELAY_MS / 60000} min`);
+        await sleep(RETRY_DELAY_MS);
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  const { upserted, totalRows, skippedRows, stationCount } = result;
 
   console.log(`Rows read:  ${totalRows}`);
   console.log(`Rows skipped: ${skippedRows}`);

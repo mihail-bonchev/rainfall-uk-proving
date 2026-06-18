@@ -14,20 +14,6 @@ async function fetchAreasGeoJSON(url: string): Promise<FeatureCollection> {
   return res.json() as Promise<FeatureCollection>
 }
 
-// Met Office colour scale applied to area-average mm — same breakpoints as station circles.
-const CHOROPLETH_COLOUR: ExpressionSpecification = [
-  'step',
-  ['get', 'rainfall_avg_mm'],
-  'rgba(180,180,180,0.5)',
-  0.1, '#a8d5f5',
-  0.5, '#50c8f4',
-  2,   '#00a651',
-  5,   '#fff200',
-  10,  '#ff7f00',
-  20,  '#e8001d',
-  50,  '#9b0026',
-]
-
 // Choropleth fill removed — it painted each EA region with a flat uniform colour,
 // creating hard administrative boundaries that fight the heatmap's smooth gradients.
 // The heatmap handles all density colouring from actual station data.
