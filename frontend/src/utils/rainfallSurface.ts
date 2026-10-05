@@ -191,7 +191,7 @@ export function renderField(
     for (let x = 0; x < cw; x++) {
       const fx = (x + 0.5) / upscale - 0.5
       const c = bilinear(field.cov, field.width, field.height, fx, fy)
-      if (c < 0.04) continue
+      if (c < 0.01) continue
       const mm =
         bilinear(field.num, field.width, field.height, fx, fy) /
         bilinear(field.den, field.width, field.height, fx, fy)
@@ -201,7 +201,7 @@ export function renderField(
       px[o] = rgb[0]
       px[o + 1] = rgb[1]
       px[o + 2] = rgb[2]
-      px[o + 3] = Math.round(255 * Math.min(1, (c - 0.04) / 0.3))
+      px[o + 3] = Math.round(255 * Math.min(1, (c - 0.01) / 0.04))
     }
   }
   ctx.putImageData(img, 0, 0)

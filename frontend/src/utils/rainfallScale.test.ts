@@ -29,9 +29,12 @@ describe('metOfficeBand', () => {
 describe('rainfallRgb', () => {
   const scale = getRainfallScale('7d')
 
-  it('is transparent (null) below the scale floor', () => {
-    expect(rainfallRgb(0, scale, 'bbc')).toBeNull()
+  it('leaves dry areas uncoloured in Met Office style, like radar', () => {
     expect(rainfallRgb(0, scale, 'metoffice')).toBeNull()
+  })
+
+  it('paints dry areas the palest blue in BBC style', () => {
+    expect(rainfallRgb(0, scale, 'bbc')).toEqual([0xb9, 0xde, 0xf5])
   })
 
   it('clamps BBC colours at the top of the scale', () => {

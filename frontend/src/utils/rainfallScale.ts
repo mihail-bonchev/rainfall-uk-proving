@@ -68,11 +68,17 @@ export function metOfficeBand(mm: number, bounds: number[]): number {
   return i
 }
 
-/** Colour for a rainfall value, or null when below the scale floor. */
+/**
+ * Colour for a rainfall value. Met Office style leaves dry areas uncoloured
+ * (null below the floor), like radar; BBC style paints dry as its palest blue
+ * so dry areas on the dark map don't read as missing data.
+ */
 export function rainfallRgb(mm: number, scale: RainfallScale, theme: MapTheme): RGB | null {
-  if (!(mm >= scale.floor * 0.999)) return null
-  if (theme === 'metoffice') return METOFFICE_RGB[metOfficeBand(mm, scale.bounds)]
-  const t = Math.min(mm / scale.max, 1)
+  if (theme === 'metoffice') {
+    return mm >= scale.floor * 0.999 ? METOFFICE_RGB[metOfficeBand(mm, scale.bounds)] : null
+  }
+  if (!Number.isFinite(mm)) return null
+  const t = Math.min(Math.max(mm, 0) / scale.max, 1)
   for (let i = 1; i < BBC_RGB.length; i++) {
     const [t1, c1] = BBC_RGB[i]
     if (t <= t1) {
