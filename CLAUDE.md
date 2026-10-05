@@ -13,7 +13,7 @@ Data source: [EA Flood Monitoring API](https://environment.data.gov.uk/flood-mon
 Epics 1–7 are complete and the app is deployed at [rain.xelantis.com](https://rain.xelantis.com).
 
 - **Epics 1–6** (Foundation, Stations, Zoom layers, Live data, Station panel, Short-term historical up to 28d via EA API) are complete.
-- **Epic 7** (Supabase + ingest pipeline) is live: `7d` and `28d` time ranges now query Supabase `station_daily_totals` directly. Supabase holds daily totals from early May 2026 onwards. The Railway cron job (`ingest_archive.js`) runs daily at 05:00 UTC and fills any of the last 7 days missing from Supabase. **EA publishes each day's archive ~22:20 UTC the following day**, so the newest available day is usually 2 days old — a 404 for a recent date is normal, not an error.
+- **Epic 7** (Supabase + ingest pipeline) is live: `7d` and `28d` time ranges now query Supabase `station_daily_totals` directly. Supabase holds daily totals from early May 2026 onwards. The Railway cron job (`ingest_archive.js`) runs daily at 06:00 UTC and fills any of the last 7 days missing from Supabase. **EA publishes each day's archive ~22:20 UTC the following day**, so the newest available day is usually 2 days old — a 404 for a recent date is normal, not an error.
 - **Epic 8** (Period vs historic averages) is Phase 3 — not yet started.
 - `3 months` and `1 year` presets are not yet wired up (Phase 3).
 
@@ -41,7 +41,7 @@ See [spec/implementation-plan.md](spec/implementation-plan.md) for the full epic
 | Runtime | Node.js | `ingest_archive.js` — CommonJS |
 | DB client | `@supabase/supabase-js` | Service role key for writes |
 | CSV parsing | `csv-parse` | |
-| Schedule | Railway Cron Job | Daily at 05:00 UTC; Node >=20 (`engines` in package.json) |
+| Schedule | Railway Cron Job | Daily at 06:00 UTC; Node >=20 (`engines` in package.json) |
 
 ## Repository Structure
 
@@ -252,7 +252,7 @@ See `spec/implementation-plan.md` for full download URL.
 | Layer | Platform | Notes |
 |---|---|---|
 | Frontend | Vercel | Domain: `rain.xelantis.com`; **manual deploy — git push does NOT auto-deploy** |
-| Archive cron | Railway | Cron Job; runs `node ingest/ingest_archive.js` daily at 05:00 UTC |
+| Archive cron | Railway | Cron Job; runs `node ingest/ingest_archive.js` daily at 06:00 UTC |
 | Database | Supabase | PostgreSQL; anon key for reads, service key for cron writes |
 
 ### Deploying the frontend
