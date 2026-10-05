@@ -1,6 +1,6 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
-const { processRow, buildUpsertRows } = require('./ingest_archive');
+const { processRow, buildUpsertRows, lookbackDates } = require('./ingest_archive');
 
 // ---------------------------------------------------------------------------
 // processRow — Step 1 (filter) + Step 2 (stationRef extraction)
@@ -92,5 +92,17 @@ describe('buildUpsertRows', () => {
 
   test('returns empty array when no stations accumulated', () => {
     assert.deepEqual(buildUpsertRows('2026-05-21', {}, {}), []);
+  });
+});
+
+describe('lookbackDates', () => {
+  test('returns the N days before today, oldest first, excluding today', () => {
+    const now = new Date('2026-10-05T05:00:00Z');
+    assert.deepEqual(lookbackDates(3, now), ['2026-10-02', '2026-10-03', '2026-10-04']);
+  });
+
+  test('crosses month boundaries', () => {
+    const now = new Date('2026-10-01T05:00:00Z');
+    assert.deepEqual(lookbackDates(2, now), ['2026-09-29', '2026-09-30']);
   });
 });

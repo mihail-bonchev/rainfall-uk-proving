@@ -42,24 +42,43 @@ function buildUpsertRows(date, totals, counts) {
   }));
 }
 
-function getTargetDate() {
+// EA publishes each day's archive ~22:20 UTC the following day, so the most
+// recent file is often 2 days old. Each run fills any gaps in a lookback window.
+const LOOKBACK_DAYS = 7;
+
+function parseDateArg() {
   const args = process.argv.slice(2);
   const flagIdx = args.indexOf('--date');
-  if (flagIdx !== -1 && args[flagIdx + 1]) {
-    const d = args[flagIdx + 1];
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) {
-      console.error(`Invalid date format "${d}" — expected YYYY-MM-DD`);
-      process.exit(1);
-    }
-    return d;
+  if (flagIdx === -1 || !args[flagIdx + 1]) return null;
+  const d = args[flagIdx + 1];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+    console.error(`Invalid date format "${d}" — expected YYYY-MM-DD`);
+    process.exit(1);
   }
-  const yesterday = new Date();
-  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-  return yesterday.toISOString().slice(0, 10);
+  return d;
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function lookbackDates(days, now = new Date()) {
+  const dates = [];
+  for (let i = days; i >= 1; i--) {
+    const d = new Date(now);
+    d.setUTCDate(d.getUTCDate() - i);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+async function findMissingDates(supabase, dates) {
+  const missing = [];
+  for (const date of dates) {
+    const { count, error } = await supabase
+      .from('station_daily_totals')
+      .select('*', { count: 'exact', head: true })
+      .eq('date', date);
+    if (error) throw new Error(`Supabase count failed for ${date}: ${error.message}`);
+    if (!count) missing.push(date);
+  }
+  return missing;
 }
 
 function downloadAndAggregate(date) {
@@ -68,7 +87,10 @@ function downloadAndAggregate(date) {
   return new Promise((resolve, reject) => {
     https.get(url, (response) => {
       if (response.statusCode !== 200) {
-        reject(new Error(`EA archive returned HTTP ${response.statusCode} for ${date}`));
+        response.resume();
+        const err = new Error(`EA archive returned HTTP ${response.statusCode} for ${date}`);
+        err.statusCode = response.statusCode;
+        reject(err);
         return;
       }
 
@@ -121,39 +143,38 @@ async function ingestArchive(date) {
 }
 
 async function main() {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY');
+  }
   const start = Date.now();
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-  const date = getTargetDate();
-  console.log(`Date:       ${date}`);
+  const explicit = parseDateArg();
+  const dates = explicit
+    ? [explicit]
+    : await findMissingDates(supabase, lookbackDates(LOOKBACK_DAYS));
 
-  const MAX_ATTEMPTS = 3;
-  const RETRY_DELAY_MS = 10 * 60 * 1000; // 10 minutes
-  let lastErr;
-  let result;
+  if (dates.length === 0) {
+    console.log(`Nothing to do — last ${LOOKBACK_DAYS} days already ingested.`);
+    return;
+  }
+  console.log(`Dates to ingest: ${dates.join(', ')}`);
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    console.log(`Downloading EA archive CSV... (attempt ${attempt}/${MAX_ATTEMPTS})`);
+  for (const date of dates) {
     try {
-      result = await ingestArchive(date);
-      break;
+      const { upserted, totalRows, skippedRows } = await ingestArchive(date);
+      console.log(`✓ ${date} — ${upserted} stations upserted (${totalRows} rows read, ${skippedRows} skipped)`);
     } catch (err) {
-      lastErr = err;
-      if (err.message.includes('HTTP 404') && attempt < MAX_ATTEMPTS) {
-        console.log(`Archive not yet available — retrying in ${RETRY_DELAY_MS / 60000} min`);
-        await sleep(RETRY_DELAY_MS);
-      } else {
-        throw err;
+      if (err.statusCode === 404 && !explicit) {
+        console.log(`· ${date} — not published by EA yet, will retry next run`);
+        continue;
       }
+      throw err;
     }
   }
 
-  const { upserted, totalRows, skippedRows, stationCount } = result;
-
-  console.log(`Rows read:  ${totalRows}`);
-  console.log(`Rows skipped: ${skippedRows}`);
-  console.log(`Stations:   ${stationCount}`);
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-  console.log(`Done.       ${upserted} stations upserted in ${elapsed}s`);
+  console.log(`Done in ${elapsed}s`);
 }
 
 if (require.main === module) {
@@ -163,4 +184,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { processRow, buildUpsertRows, ingestArchive };
+module.exports = { processRow, buildUpsertRows, ingestArchive, lookbackDates };
