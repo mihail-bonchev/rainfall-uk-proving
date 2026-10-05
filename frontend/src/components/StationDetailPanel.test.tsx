@@ -229,7 +229,7 @@ describe('StationDetailPanel', () => {
     await waitFor(() => expect(spy).toHaveBeenCalled())
     spy.mockClear()
     rerender(
-      <StationDetailPanel stationId="ABC123" timeRange="7d" onClose={vi.fn()} />,
+      <StationDetailPanel stationId="ABC123" timeRange="6h" onClose={vi.fn()} />,
     )
     await waitFor(() => expect(spy).toHaveBeenCalled())
   })

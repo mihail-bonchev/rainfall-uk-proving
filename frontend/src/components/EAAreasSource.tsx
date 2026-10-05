@@ -1,29 +1,20 @@
 import { useMemo } from 'react'
 import { Source, Layer, type LayerProps } from 'react-map-gl/maplibre'
 import type { ExpressionSpecification } from 'maplibre-gl'
-import { useQuery } from '@tanstack/react-query'
 import type { FeatureCollection } from 'geojson'
-import type { DateRange } from 'react-day-picker'
-import type { TimeRange } from '../types/api'
+import { useEAAreas } from '../hooks/useEAAreas'
 import { useStations } from '../hooks/useStations'
 import { aggregateByArea } from '../services/aggregation/regionalAggregator'
 
-async function fetchAreasGeoJSON(url: string): Promise<FeatureCollection> {
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`Failed to fetch EA areas: ${res.status}`)
-  return res.json() as Promise<FeatureCollection>
-}
-
-// Choropleth fill removed — it painted each EA region with a flat uniform colour,
-// creating hard administrative boundaries that fight the heatmap's smooth gradients.
-// The heatmap handles all density colouring from actual station data.
+// No fill: a flat colour per EA area creates hard administrative edges that
+// fight the interpolated rainfall surface.
 
 const outlineLayer: LayerProps = {
   id: 'ea-areas-outline',
   type: 'line',
   maxzoom: 7,
   paint: {
-    'line-color': '#ffffff',
+    'line-color': '#64748b',
     'line-width': 0.5,
     'line-opacity': [
       'interpolate', ['linear'], ['zoom'],
@@ -36,16 +27,10 @@ const outlineLayer: LayerProps = {
 
 interface Props {
   readingsMap?: Map<string, number>
-  timeRange?: TimeRange
-  customRange?: DateRange
 }
 
-export function EAAreasSource({ readingsMap = new Map(), timeRange: _timeRange, customRange: _customRange }: Props) {
-  const { data: areasGeoJSON } = useQuery({
-    queryKey: ['ea-areas'],
-    queryFn: () => fetchAreasGeoJSON('/data/ea-areas.geojson'),
-    staleTime: Infinity,
-  })
+export function EAAreasSource({ readingsMap = new Map() }: Props) {
+  const { data: areasGeoJSON } = useEAAreas()
 
   const { data: stations = [] } = useStations()
 

@@ -1,71 +1,54 @@
-import type { TimeRange } from '../types/api'
-
-// Must match PERIOD_MAX_MM in StationsSource exactly — both use normalised totals.
-const PERIOD_MAX_MM: Record<TimeRange, number> = {
-  '15m':    5,
-  '6h':     30,
-  '24h':    50,
-  '7d':     100,
-  '28d':    250,
-  'custom': 50,
-}
-
-const PERIOD_LABELS: Record<TimeRange, string> = {
-  '15m': 'Rainfall — last 15 min',
-  '6h':  'Rainfall — 6 h total',
-  '24h': 'Rainfall — 24 h total',
-  '7d':  'Rainfall — 7-day total',
-  '28d': 'Rainfall — 28-day total',
-  'custom': 'Rainfall — custom period',
-}
-
-function fmt(n: number): string {
-  if (n >= 100) return `${Math.round(n)} mm`
-  if (n >= 10) return `${Math.round(n)} mm`
-  return `${parseFloat(n.toPrecision(2))} mm`
-}
+import { BBC_STOPS, METOFFICE_BANDS, formatMm, type MapTheme, type RainfallScale } from '../utils/rainfallScale'
 
 interface Props {
-  timeRange: TimeRange
+  scale: RainfallScale
+  theme: MapTheme
 }
 
-export function RainfallLegend({ timeRange }: Props) {
-  const maxMm = PERIOD_MAX_MM[timeRange]
-  // 6 evenly-spaced breakpoints from max down to near-zero
-  const breakpoints = [1, 0.8, 0.65, 0.5, 0.35, 0.2].map((f) => maxMm * f)
-
-  const gradient = `linear-gradient(to top,
-    #081b2e 0%,
-    #0d3b6e 16%,
-    #1565c0 30%,
-    #1976d2 44%,
-    #42a5f5 58%,
-    #90caf9 70%,
-    #bbdefb 80%,
-    #e3f2fd 88%,
-    #00e676 100%
-  )`
-
+export function RainfallLegend({ scale, theme }: Props) {
   return (
     <div
+      data-testid="rainfall-legend"
       style={{ position: 'absolute', bottom: 32, left: 16, zIndex: 10 }}
-      className="bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2.5 shadow-lg pointer-events-none select-none text-white"
+      className="pointer-events-none select-none rounded-lg bg-slate-950/75 px-3 py-2.5 text-white shadow-lg backdrop-blur-sm"
     >
-      <p className="text-[10px] font-semibold mb-2 tracking-wide uppercase opacity-70">
-        {PERIOD_LABELS[timeRange]}
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider opacity-80">
+        Rainfall · {scale.label}
       </p>
-      <div className="flex items-stretch gap-2.5">
-        <div
-          className="w-3 rounded-sm flex-shrink-0"
-          style={{ background: gradient, minHeight: 110 }}
-        />
-        <div className="flex flex-col justify-between text-[10px] leading-none">
-          {breakpoints.map((mm, i) => (
-            <span key={i} className={i === 0 ? 'opacity-90' : 'opacity-75'}>{fmt(mm)}</span>
-          ))}
-          <span className="opacity-40">Dry</span>
-        </div>
+      {theme === 'bbc' ? <BbcBar scale={scale} /> : <MetOfficeBands scale={scale} />}
+    </div>
+  )
+}
+
+function BbcBar({ scale }: { scale: RainfallScale }) {
+  const gradient = `linear-gradient(to right, ${BBC_STOPS.map(([t, c]) => `${c} ${t * 100}%`).join(', ')})`
+  const ticks = [0, 0.2, 0.4, 0.6, 0.8, 1].map((f) => scale.max * f)
+  return (
+    <div className="w-56">
+      <div className="h-2.5 rounded-sm" style={{ background: gradient }} />
+      <div className="mt-1 flex justify-between text-[10px] leading-none opacity-80">
+        {ticks.map((mm, i) => (
+          <span key={i}>{formatMm(mm)}{i === ticks.length - 1 ? '+' : ''}</span>
+        ))}
       </div>
+      <p className="mt-1 text-center text-[9px] opacity-50">mm</p>
+    </div>
+  )
+}
+
+function MetOfficeBands({ scale }: { scale: RainfallScale }) {
+  const b = scale.bounds
+  const labels = METOFFICE_BANDS.map((_, i) =>
+    i === 0 ? `<${formatMm(b[0])}` : i === b.length ? `>${formatMm(b[i - 1])}` : `${formatMm(b[i - 1])}–${formatMm(b[i])}`,
+  )
+  return (
+    <div className="flex flex-col-reverse gap-0.5">
+      {METOFFICE_BANDS.map((c, i) => (
+        <div key={c} className="flex items-center gap-2 text-[10px] leading-none">
+          <span className="h-3 w-3 rounded-[2px]" style={{ background: c }} />
+          <span className="opacity-85">{labels[i]} mm</span>
+        </div>
+      ))}
     </div>
   )
 }

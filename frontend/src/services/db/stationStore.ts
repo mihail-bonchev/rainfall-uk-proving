@@ -4,7 +4,8 @@ import type { FeatureCollection, Polygon, MultiPolygon } from 'geojson'
 
 export type { Station }
 
-const CACHE_KEY = 'stationsLastFetched_v2'
+// Bumped to v3: earlier caches hold only the first ~500 stations.
+const CACHE_KEY = 'stationsLastFetched_v3'
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 async function isCacheFresh(db: Awaited<ReturnType<typeof getDb>>): Promise<boolean> {

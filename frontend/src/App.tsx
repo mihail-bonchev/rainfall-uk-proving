@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import './App.css'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import MapGL from 'react-map-gl/maplibre'
@@ -11,10 +11,16 @@ import { TimeRangeControl } from './components/TimeRangeControl'
 import { SyncStatus } from './components/SyncStatus'
 import { OfflineBanner } from './components/OfflineBanner'
 import { RainfallLegend } from './components/RainfallLegend'
+import { RainfallSurface } from './components/RainfallSurface'
+import { BasemapStyler } from './components/BasemapStyler'
+import { BASEMAP_STYLE } from './utils/basemap'
+import { getRainfallScale, type MapTheme } from './utils/rainfallScale'
 import { Button } from './components/ui/button'
 import { useLatestReadings } from './hooks/useLatestReadings'
 import { downloadRegionalCsv } from './utils/csvExport'
 import type { TimeRange } from './types/api'
+
+const DEFAULT_VIEW = { longitude: -1.8, latitude: 53.0, zoom: 5.6 }
 
 function App() {
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null)
@@ -22,6 +28,26 @@ function App() {
   const [timeRange, setTimeRange] = useState<TimeRange>('7d')
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
   const handleStationClick = useCallback((id: string) => setSelectedStationId(id), [])
+  const [theme, setTheme] = useState<MapTheme>(() => {
+    try {
+      return localStorage.getItem('map-theme') === 'metoffice' ? 'metoffice' : 'bbc'
+    } catch {
+      return 'bbc'
+    }
+  })
+  const viewRef = useRef(DEFAULT_VIEW)
+  const [initialView, setInitialView] = useState(DEFAULT_VIEW)
+  const toggleTheme = () => {
+    const next = theme === 'bbc' ? 'metoffice' : 'bbc'
+    setInitialView(viewRef.current)
+    setTheme(next)
+    try {
+      localStorage.setItem('map-theme', next)
+    } catch {
+      // storage unavailable — theme just won't persist
+    }
+  }
+  const scale = useMemo(() => getRainfallScale(timeRange, customRange), [timeRange, customRange])
 
   const {
     data: readingsMap = new Map<string, number>(),
@@ -68,25 +94,40 @@ function App() {
       >
         Regions
       </Button>
-      <RainfallLegend timeRange={timeRange} />
+      <Button
+        data-testid="theme-btn"
+        variant="outline"
+        size="sm"
+        onClick={toggleTheme}
+        style={{ position: 'absolute', bottom: 32, right: 16, zIndex: 10 }}
+        className="bg-slate-900/85 backdrop-blur-sm shadow-md text-slate-100 border-slate-700 hover:bg-slate-800/90"
+      >
+        Style: {theme === 'bbc' ? 'BBC' : 'Met Office'}
+      </Button>
+      <RainfallLegend scale={scale} theme={theme} />
       <SyncStatus dataUpdatedAt={dataUpdatedAt} isError={isError} />
       <OfflineBanner failureCount={failureCount} lastUpdatedAt={dataUpdatedAt} />
+      {/* Remount on theme change so the new basemap and our layers load cleanly; view is kept. */}
       <MapGL
-        mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
-        initialViewState={{
-          longitude: -2.8,
-          latitude: 55.5,
-          zoom: 5.5,
+        key={theme}
+        mapStyle={BASEMAP_STYLE[theme]}
+        initialViewState={initialView}
+        onMove={(e) => {
+          const { longitude, latitude, zoom } = e.viewState
+          viewRef.current = { longitude, latitude, zoom }
         }}
         style={{ position: 'absolute', inset: 0 }}
         minZoom={4.5}
-        maxZoom={10}
+        maxZoom={11}
+        dragRotate={false}
         scrollZoom
         dragPan
         touchZoomRotate
       >
-        <StationsSource onStationClick={handleStationClick} readingsMap={readingsMap} timeRange={timeRange} />
-        <EAAreasSource readingsMap={readingsMap} timeRange={timeRange} customRange={customRange} />
+        <BasemapStyler theme={theme} />
+        <RainfallSurface readingsMap={readingsMap} scale={scale} theme={theme} />
+        <StationsSource onStationClick={handleStationClick} readingsMap={readingsMap} scale={scale} theme={theme} />
+        <EAAreasSource readingsMap={readingsMap} />
       </MapGL>
     </div>
   )

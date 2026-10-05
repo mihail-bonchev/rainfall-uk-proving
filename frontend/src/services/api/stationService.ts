@@ -53,22 +53,20 @@ function normalise(raw: EAStation): Station {
   }
 }
 
+// The EA API no longer reports meta.totalCount, so page until a page adds no
+// new stations (an empty page past the end, or a repeated page).
+const MAX_PAGES = 20
+
 export async function fetchAllStations(): Promise<Station[]> {
-  const first = await fetchPage(0)
-  const stations = first.items.map(normalise)
-
-  const total = first.meta?.totalCount ?? stations.length
-  if (stations.length >= total) return stations
-
-  const remaining = total - stations.length
-  const pageCount = Math.ceil(remaining / PAGE_SIZE)
-  const pages = await Promise.all(
-    Array.from({ length: pageCount }, (_, i) => fetchPage((i + 1) * PAGE_SIZE)),
-  )
-
-  for (const page of pages) {
-    stations.push(...page.items.map(normalise))
+  const byId = new Map<string, Station>()
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const { items } = await fetchPage(page * PAGE_SIZE)
+    const before = byId.size
+    for (const raw of items) {
+      if (typeof raw.lat !== 'number' || typeof raw.long !== 'number') continue
+      byId.set(raw.stationReference, normalise(raw))
+    }
+    if (items.length === 0 || byId.size === before) break
   }
-
-  return stations
+  return [...byId.values()]
 }

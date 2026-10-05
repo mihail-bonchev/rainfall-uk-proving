@@ -85,12 +85,11 @@ describe('StationsSource', () => {
     expect(el).toHaveAttribute('data-feature-count', '2')
   })
 
-  it('renders a heatmap layer and a station-circles layer', async () => {
+  it('renders a station-circles layer and no heatmap (the surface replaces it)', async () => {
     vi.spyOn(stationStore, 'getStations').mockResolvedValue(MOCK_STATIONS)
     renderWithProviders(<StationsSource />)
-    const heat = await screen.findByTestId('layer-rainfall-heat')
     const circles = await screen.findByTestId('layer-station-circles')
-    expect(heat).toHaveAttribute('data-layer-type', 'heatmap')
+    expect(screen.queryByTestId('layer-rainfall-heat')).toBeNull()
     expect(circles).toHaveAttribute('data-layer-type', 'circle')
   })
 

@@ -26,12 +26,12 @@ See [spec/implementation-plan.md](spec/implementation-plan.md) for the full epic
 |---|---|---|
 | Framework | React 19 + TypeScript + Vite 8 | |
 | Map | MapLibre GL JS + react-map-gl v8 | NOT Leaflet |
-| Tiles | OpenFreeMap vector tiles | Free, no API key |
+| Tiles | Carto dark-matter (BBC style) / OpenFreeMap positron (Met Office style) | Free, no API key; recoloured to two tones in `utils/basemap.ts` |
 | UI components | shadcn/ui (Nova preset) + Tailwind CSS v4 | `Sheet` for slide-in panel |
 | Charts | Recharts (shadcn Chart wrapper) | |
 | State/data | TanStack Query v5 + IndexedDB (idb) | |
 | Time controls | Custom preset chips + shadcn DateRangePicker | |
-| Colour scale | Met Office blue→cyan→green→yellow→orange→red | MapLibre `step` expression |
+| Colour scale | Two themes, toggled in UI: BBC continuous blue ramp, Met Office 8 bands | `utils/rainfallScale.ts` — thresholds rescale per time range |
 | Historical DB | Supabase PostgreSQL | 7d/28d query `station_daily_totals` via Supabase JS client |
 | Testing | Vitest + RTL + MSW + playwright-bdd + Playwright | See [spec/testing-strategy.md](spec/testing-strategy.md) |
 
@@ -199,13 +199,11 @@ $$;
 
 ## Map Architecture (Frontend)
 
-Three layers driven by MapLibre zoom expressions (no React re-renders):
-
-- **Zoom 5–7**: Regional choropleth (fill layer on EA region polygons)
-- **Zoom 7–11**: Clustered station markers (native MapLibre GeoJSON clustering)
-- **Zoom 11+**: Individual station circles (click → shadcn Sheet panel)
-
-Cluster `clusterProperties` aggregate `rainfall_sum` so colour stays meaningful at all zoom levels.
+- **Rainfall surface** (`RainfallSurface.tsx` + `utils/rainfallSurface.ts`): station totals are interpolated client-side onto a Web-Mercator grid (Gaussian-tapered inverse-distance weights, ~9 km σ, 25 km cutoff), painted to a canvas, clipped to the EA areas polygon (England coastline) and shown as a MapLibre `image` source **below the basemap labels**. Coverage fades out where no station is near. A neighbour "buddy check" (`removeOutliers`) drops stuck/zero gauges from the surface so they don't paint bullseyes. Hover shows the interpolated mm.
+- **Do not use MapLibre `heatmap` layers for rainfall** — they visualise station *density*, not rainfall amount (that was the cause of the old "England glows green" problem).
+- **Station dots** (zoom 7+): clickable, coloured on the same scale → shadcn Sheet panel.
+- **Themes**: `bbc` (dark, continuous blues, green/yellow extremes) and `metoffice` (light, 8 radar bands). `MapGL` is remounted (`key={theme}`) on toggle; the view is preserved.
+- Zoom limited to 4.5–11.
 
 ## Key Data Contracts
 
@@ -224,18 +222,22 @@ Cluster `clusterProperties` aggregate `rainfall_sum` so colour stays meaningful 
 | 3 months, 1 year | Supabase (presets not yet wired up) | Phase 3 |
 | Period vs average | Met Office 1991–2020 baseline | Phase 3 |
 
-## Heatmap Colour Thresholds (`PERIOD_MAX_MM`)
+## Rainfall Colour Scales (`utils/rainfallScale.ts`)
 
-The value at which a station shows full red. Defined in **both** `StationsSource.tsx` and `RainfallLegend.tsx` — keep them exactly in sync.
+Single source of truth for surface, station dots and legend. Per time range: `floor` (below = transparent/dry), `bounds` (7 Met Office band edges) and `max` (top of the BBC ramp). Custom ranges pick the 24h/7d/28d scale by length.
 
-| Range | Max mm | Rationale |
-|---|---|---|
-| 15m | 5 | Intense downpour threshold |
-| 6h | 30 | Met Office Amber warning threshold |
-| 24h | 50 | Met Office Amber/Red threshold |
-| 7d | 100 | Autumn 2024 UK flood week benchmark |
-| 28d | 250 | 1-in-50-year UK monthly total |
-| custom | 50 | Matches 24h default |
+| Range | floor | Met Office bounds (mm) | BBC max |
+|---|---|---|---|
+| 15m | 0.05 | 0.2 0.5 1 2 3 5 8 | 5 |
+| 6h | 0.1 | 0.5 1 2 4 8 16 32 | 30 |
+| 24h | 0.2 | 1 2 4 8 16 32 64 | 50 |
+| 7d | 0.5 | 2 5 10 20 40 80 160 | 80 |
+| 28d | 1 | 5 10 25 50 100 200 300 | 200 |
+
+## Known data limitations
+
+- **6h / 24h** EA API queries cap at 10,000 readings per request (~129 stations for a full day) — those views are under-sampled. 15m (`?latest`, ~930 stations) and 7d/28d (Supabase) are complete.
+- The EA `/id/stations` endpoint no longer returns `meta.totalCount`; `fetchAllStations` pages until a page adds nothing new (~1,040 stations).
 
 ## EA Areas (14 — `eaAreaName` field, NOT deprecated `eaRegionName`)
 

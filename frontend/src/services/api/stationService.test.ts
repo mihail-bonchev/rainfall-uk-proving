@@ -40,28 +40,21 @@ describe('fetchAllStations', () => {
     expect(stations[0].long).toBeCloseTo(-0.09)
   })
 
-  it('paginates when totalCount exceeds first page', async () => {
+  it('keeps paging until an empty page, without relying on meta.totalCount', async () => {
     let callCount = 0
     server.use(
       http.get(`${EA_BASE}/id/stations`, ({ request }) => {
         const offset = Number(new URL(request.url).searchParams.get('_offset') ?? '0')
         callCount++
-        if (offset === 0) {
-          return HttpResponse.json({
-            meta: { totalCount: 3 },
-            items: [makeRawStation(1), makeRawStation(2)],
-          })
-        }
-        return HttpResponse.json({
-          meta: { totalCount: 3 },
-          items: [makeRawStation(3)],
-        })
+        if (offset === 0) return HttpResponse.json({ items: [makeRawStation(1), makeRawStation(2)] })
+        if (offset === 500) return HttpResponse.json({ items: [makeRawStation(3)] })
+        return HttpResponse.json({ items: [] })
       }),
     )
 
     const stations = await fetchAllStations()
 
-    expect(callCount).toBe(2)
+    expect(callCount).toBe(3)
     expect(stations).toHaveLength(3)
     expect(stations[2].id).toBe('E0003')
   })

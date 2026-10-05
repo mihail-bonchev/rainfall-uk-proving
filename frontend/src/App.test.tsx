@@ -10,6 +10,8 @@ vi.mock('./services/db/supabaseClient', () => ({
 const mockGetMap = vi.fn(() => ({
   on: vi.fn(),
   off: vi.fn(),
+  once: vi.fn(),
+  isStyleLoaded: () => false,
   getCanvas: vi.fn(() => ({ style: { cursor: '' } })),
   getSource: vi.fn(),
   flyTo: vi.fn(),
