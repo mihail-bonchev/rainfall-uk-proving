@@ -2,7 +2,7 @@ import { screen, fireEvent, waitFor, render } from '@testing-library/react'
 import { StationDetailPanel } from './StationDetailPanel'
 import { renderWithProviders, makeWrapper } from '../test/utils'
 import * as stationStore from '../services/db/stationStore'
-import * as readingStore from '../services/db/readingStore'
+import * as historicalService from '../services/api/historicalService'
 import type { TimeRange } from '../types/api'
 
 const MOCK_STATION = {
@@ -24,7 +24,7 @@ const DEFAULT_TIME_RANGE: TimeRange = '24h'
 describe('StationDetailPanel', () => {
   beforeEach(() => {
     vi.spyOn(stationStore, 'getStations').mockResolvedValue([MOCK_STATION])
-    vi.spyOn(readingStore, 'getReadingsByStation').mockResolvedValue([])
+    vi.spyOn(historicalService, 'fetchStationReadings').mockResolvedValue([])
   })
 
   afterEach(() => vi.restoreAllMocks())
@@ -115,7 +115,7 @@ describe('StationDetailPanel', () => {
   })
 
   it('shows reading value with 1 decimal place', async () => {
-    vi.spyOn(readingStore, 'getReadingsByStation').mockResolvedValue([makeReading(12.4, 8)])
+    vi.spyOn(historicalService, 'fetchStationReadings').mockResolvedValue([makeReading(12.4, 8)])
     renderWithProviders(<StationDetailPanel stationId="ABC123" timeRange={DEFAULT_TIME_RANGE} onClose={vi.fn()} />)
     await waitFor(() =>
       expect(screen.getByTestId('reading-badge')).toHaveTextContent('12.4 mm'),
@@ -123,7 +123,7 @@ describe('StationDetailPanel', () => {
   })
 
   it('shows data age in minutes', async () => {
-    vi.spyOn(readingStore, 'getReadingsByStation').mockResolvedValue([makeReading(5.0, 8)])
+    vi.spyOn(historicalService, 'fetchStationReadings').mockResolvedValue([makeReading(5.0, 8)])
     renderWithProviders(<StationDetailPanel stationId="ABC123" timeRange={DEFAULT_TIME_RANGE} onClose={vi.fn()} />)
     await waitFor(() =>
       expect(screen.getByTestId('reading-meta')).toHaveTextContent('8 min ago'),
@@ -131,7 +131,7 @@ describe('StationDetailPanel', () => {
   })
 
   it('shows data age in hours and minutes when over 60 min', async () => {
-    vi.spyOn(readingStore, 'getReadingsByStation').mockResolvedValue([makeReading(5.0, 150)])
+    vi.spyOn(historicalService, 'fetchStationReadings').mockResolvedValue([makeReading(5.0, 150)])
     renderWithProviders(<StationDetailPanel stationId="ABC123" timeRange={DEFAULT_TIME_RANGE} onClose={vi.fn()} />)
     await waitFor(() =>
       expect(screen.getByTestId('reading-meta')).toHaveTextContent('2 h 30 min ago'),
@@ -139,7 +139,7 @@ describe('StationDetailPanel', () => {
   })
 
   it('shows reading timestamp in HH:mm format', async () => {
-    vi.spyOn(readingStore, 'getReadingsByStation').mockResolvedValue([makeReading(3.0, 0)])
+    vi.spyOn(historicalService, 'fetchStationReadings').mockResolvedValue([makeReading(3.0, 0)])
     renderWithProviders(<StationDetailPanel stationId="ABC123" timeRange={DEFAULT_TIME_RANGE} onClose={vi.fn()} />)
     await waitFor(() => {
       const meta = screen.getByTestId('reading-meta')
@@ -220,7 +220,7 @@ describe('StationDetailPanel', () => {
   })
 
   it('re-fetches chart data when timeRange changes', async () => {
-    const spy = vi.spyOn(readingStore, 'getReadingsByStation').mockResolvedValue([])
+    const spy = vi.spyOn(historicalService, 'fetchStationReadings').mockResolvedValue([])
     const Wrapper = makeWrapper()
     const { rerender } = render(
       <StationDetailPanel stationId="ABC123" timeRange="24h" onClose={vi.fn()} />,

@@ -5,6 +5,10 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // Vite doesn't run Vercel functions; in dev, use the deployed /api.
+  server: {
+    proxy: { '/api': { target: 'https://rain.xelantis.com', changeOrigin: true } },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

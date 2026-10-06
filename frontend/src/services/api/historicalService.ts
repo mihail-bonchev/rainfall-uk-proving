@@ -30,7 +30,8 @@ function normalise(raw: EAReading): Reading | null {
   }
 }
 
-async function fetchPagedReadings(stationRef: string, from: Date, to: Date): Promise<Reading[]> {
+// Always hits the EA API (no cache) — for live ranges where freshness matters.
+export async function fetchStationReadings(stationRef: string, from: Date, to: Date): Promise<Reading[]> {
   const results: Reading[] = []
   let offset = 0
 
@@ -80,7 +81,7 @@ export async function fetchReadingsForStation(stationRef: string, from: Date, to
     return [...cached].sort((a, b) => a.dateTime.localeCompare(b.dateTime))
   }
 
-  const readings = await fetchPagedReadings(stationRef, from, to)
+  const readings = await fetchStationReadings(stationRef, from, to)
   if (readings.length > 0) {
     await upsertReadings(readings)
   }

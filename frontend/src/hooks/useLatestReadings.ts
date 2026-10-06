@@ -1,18 +1,28 @@
 import { useQuery } from '@tanstack/react-query'
 import type { DateRange } from 'react-day-picker'
 import type { TimeRange } from '../types/api'
-import { fetchLatestReadings, fetchReadings } from '../services/api/readingService'
+import { fetchLatestReadings, fetchReadings, fetchRecentTotals } from '../services/api/readingService'
 import { upsertReadings } from '../services/db/readingStore'
 import { getDateRangeForPreset, getDateRangeForCustom } from '../utils/dateUtils'
 import { useHistoricalReadings } from './useHistoricalReadings'
 
 export function useLatestReadings(timeRange: TimeRange, customRange?: DateRange) {
   const isHistorical = timeRange === '7d' || timeRange === '28d'
+  const isRecentTotals = timeRange === '6h' || timeRange === '24h'
 
   const historicalResult = useHistoricalReadings(
     (isHistorical ? timeRange : '7d') as '7d' | '28d',
     { enabled: isHistorical },
   )
+
+  const totalsResult = useQuery<Map<string, number>>({
+    queryKey: ['recent-totals', timeRange],
+    queryFn: () => fetchRecentTotals(timeRange === '6h' ? 6 : 24),
+    enabled: isRecentTotals,
+    refetchInterval: 5 * 60_000,
+    refetchIntervalInBackground: false,
+    staleTime: 5 * 60_000,
+  })
 
   const eaResult = useQuery<Map<string, number>>({
     queryKey: ['readings', timeRange, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
@@ -42,11 +52,12 @@ export function useLatestReadings(timeRange: TimeRange, customRange?: DateRange)
       }
       return readingsMap
     },
-    enabled: !isHistorical && (timeRange !== 'custom' || !!(customRange?.from && customRange?.to)),
+    enabled: !isHistorical && !isRecentTotals && (timeRange !== 'custom' || !!(customRange?.from && customRange?.to)),
     refetchInterval: timeRange === 'custom' ? false : 30_000,
     refetchIntervalInBackground: false,
     staleTime: 0,
   })
 
-  return isHistorical ? historicalResult : eaResult
+  if (isHistorical) return historicalResult
+  return isRecentTotals ? totalsResult : eaResult
 }

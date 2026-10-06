@@ -16,7 +16,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFo
 import { Button } from './ui/button'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useStations } from '../hooks/useStations'
-import { getReadingsByStation } from '../services/db/readingStore'
+import { fetchStationReadings } from '../services/api/historicalService'
 import { supabase } from '../services/db/supabaseClient'
 import type { TimeRange, Reading } from '../types/api'
 
@@ -100,17 +100,24 @@ function aggregateToHourly(readings: Reading[]): ChartPoint[] {
     }))
 }
 
+async function fetchWindow(stationId: string, windowMs: number) {
+  const to = new Date()
+  const from = new Date(to.getTime() - windowMs)
+  const readings = await fetchStationReadings(stationId, from, to)
+  return readings
+    .filter((r) => new Date(r.dateTime).getTime() > from.getTime())
+    .sort((a, b) => a.dateTime.localeCompare(b.dateTime))
+}
+
 function useCurrentReading(stationId: string | null) {
   return useQuery({
     queryKey: ['current-reading', stationId],
     queryFn: async () => {
-      const to = new Date()
-      const from = new Date(to.getTime() - 24 * 60 * 60 * 1000)
-      const readings = await getReadingsByStation(stationId!, from, to)
+      const readings = await fetchWindow(stationId!, 24 * 60 * 60 * 1000)
       return readings.length > 0 ? readings[readings.length - 1] : null
     },
     enabled: !!stationId,
-    staleTime: 30_000,
+    staleTime: 60_000,
   })
 }
 
@@ -118,16 +125,14 @@ function useChartData(stationId: string | null, timeRange: TimeRange) {
   return useQuery({
     queryKey: ['chart-data', stationId, timeRange],
     queryFn: async () => {
-      const to = new Date()
-      const from = new Date(to.getTime() - timeRangeToMs(timeRange))
-      const readings = await getReadingsByStation(stationId!, from, to)
+      const readings = await fetchWindow(stationId!, timeRangeToMs(timeRange))
       const useHourly = timeRange === '7d' || timeRange === '28d'
       return useHourly
         ? aggregateToHourly(readings)
         : readings.map((r) => ({ dateTime: r.dateTime, value: r.value }))
     },
     enabled: !!stationId,
-    staleTime: 30_000,
+    staleTime: 60_000,
   })
 }
 

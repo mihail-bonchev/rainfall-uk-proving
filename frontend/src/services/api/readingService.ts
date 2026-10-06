@@ -118,3 +118,12 @@ export async function fetchReadings(params: DateRangeParams): Promise<Reading[]>
   }
   return readings
 }
+
+// Per-station totals for the last 6/24 h, computed by the /api/rainfall-totals
+// Vercel function (the bulk EA endpoint is too slow/paginated to do in-browser).
+export async function fetchRecentTotals(hours: 6 | 24): Promise<Map<string, number>> {
+  const res = await fetch(`/api/rainfall-totals?hours=${hours}`)
+  if (!res.ok) throw new ReadingFetchError(res.status, `Totals API error: ${res.status}`)
+  const body = (await res.json()) as { totals: Record<string, number> }
+  return new Map(Object.entries(body.totals))
+}
