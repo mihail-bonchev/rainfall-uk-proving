@@ -50,7 +50,7 @@ describe('computeTotals', () => {
       const offset = Number(new URL(url).searchParams.get('_offset'))
       // Two full pages of recent readings, then one page that reaches back past the window.
       const iso = offset === 0 ? '2026-10-06T17:00:00Z' : offset === 10_000 ? '2026-10-06T14:00:00Z' : '2026-10-06T11:00:00Z'
-      const items = Array.from({ length: 10_000 }, () => reading('S1', iso, 0.01))
+      const items = new Array(10_000).fill(reading('S1', iso, 0.01))
       return { ok: true, status: 200, json: async () => ({ items }) }
     }
     const result = await computeTotals(6, now, fakeFetch)

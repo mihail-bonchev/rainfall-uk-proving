@@ -48,12 +48,14 @@ See [spec/implementation-plan.md](spec/implementation-plan.md) for the full epic
 ```
 rainfall-uk-proving/
 ├── frontend/             # React app (Epics 1–7 complete)
+│   ├── api/
+│   │   └── rainfall-totals.ts # Vercel Function: per-station 6h/24h totals (CDN-cached)
 │   ├── src/
 │   │   ├── App.tsx / main.tsx
 │   │   ├── components/        # Map layers, panels, controls, legend
 │   │   │   └── ui/            # shadcn components
 │   │   ├── hooks/
-│   │   │   ├── useLatestReadings.ts    # Routes 15m/6h/24h/custom → EA API; 7d/28d → Supabase
+│   │   │   ├── useLatestReadings.ts    # 15m/custom → EA API; 6h/24h → /api/rainfall-totals; 7d/28d → Supabase
 │   │   │   ├── useHistoricalReadings.ts # Supabase query for 7d / 28d
 │   │   │   ├── useRegionalSummary.ts
 │   │   │   └── useStations.ts
@@ -216,7 +218,7 @@ $$;
 | Range | Source | Status |
 |---|---|---|
 | 15m | EA API `?latest` | Live |
-| 6h, 24h | EA API `startdate`/`enddate` | Live |
+| 6h, 24h | Vercel Function `/api/rainfall-totals?hours=6\|24` (pages EA `/data/readings?_sorted` server-side) | Live |
 | 7d, 28d | Supabase `station_daily_totals` | Live |
 | custom | EA API `startdate`/`enddate` (≤28d) | Live |
 | 3 months, 1 year | Supabase (presets not yet wired up) | Phase 3 |
@@ -236,7 +238,10 @@ Single source of truth for surface, station dots and legend. Per time range: `fl
 
 ## Known data limitations
 
-- **6h / 24h** EA API queries cap at 10,000 readings per request (~129 stations for a full day) — those views are under-sampled. 15m (`?latest`, ~930 stations) and 7d/28d (Supabase) are complete.
+- The EA bulk `/data/readings` endpoint caps at 10,000 readings per request and rejects `since=`. Unsorted, one request covers only ~130 stations. With `_sorted` it returns **newest-first across all stations**, which `api/rainfall-totals.ts` uses to page back only to the window start (~3 pages for 6h, ~10 for 24h). A fresh computation takes ~40–90 s when the EA API is slow, so the response is CDN-cached (`s-maxage=600, stale-while-revalidate=3600`). `vercel.json` sets `maxDuration: 300` and excludes `/api` from the SPA rewrite.
+- **Custom ranges** still use the old in-browser bulk fetch and are under-sampled (~130 stations).
+- In `npm run dev`, Vite proxies `/api` to the production site (Vite can't run Vercel functions); use `vercel dev` to run the function locally.
+- The station panel fetches the clicked station's own readings from the EA (`fetchStationReadings`) for live ranges.
 - The EA `/id/stations` endpoint no longer returns `meta.totalCount`; `fetchAllStations` pages until a page adds nothing new (~1,040 stations).
 
 ## EA Areas (14 — `eaAreaName` field, NOT deprecated `eaRegionName`)
