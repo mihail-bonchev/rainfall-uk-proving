@@ -8,6 +8,12 @@ export default mergeConfig(
       environment: 'jsdom',
       globals: true,
       setupFiles: ['./src/test/setup.ts'],
+      // Placeholders so the suite never depends on (or hits) a real Supabase;
+      // CI has no .env, and supabaseClient throws on an empty URL at import.
+      env: {
+        VITE_SUPABASE_URL: 'http://localhost:54321',
+        VITE_SUPABASE_ANON_KEY: 'test-anon-key',
+      },
       exclude: ['**/node_modules/**', '**/e2e/**', '**/smoke/**', '**/*.smoke.test.ts'],
       coverage: {
         provider: 'v8',
