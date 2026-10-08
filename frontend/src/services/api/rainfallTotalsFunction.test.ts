@@ -60,6 +60,19 @@ describe('computeTotals', () => {
     expect(result.stationCount).toBe(1)
   })
 
+  it('keeps paging past a page that comes back a few items short', async () => {
+    const offsets: number[] = []
+    const fakeFetch = async (url: string) => {
+      const offset = Number(new URL(url).searchParams.get('_offset'))
+      offsets.push(offset)
+      const iso = offset < 30_000 ? '2026-10-06T15:00:00Z' : '2026-10-06T11:00:00Z'
+      const items = new Array(offset === 10_000 ? 9_998 : 10_000).fill(reading('S1', iso, 0.01))
+      return { ok: true, status: 200, json: async () => ({ items }) }
+    }
+    await computeTotals(6, now, fakeFetch)
+    expect(offsets).toContain(30_000)
+  })
+
   it('retries a 503 before giving up', async () => {
     let calls = 0
     const flaky = async () => {

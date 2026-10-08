@@ -13,7 +13,7 @@ Data source: [EA Flood Monitoring API](https://environment.data.gov.uk/flood-mon
 Epics 1–7 are complete and the app is deployed at [rain.xelantis.com](https://rain.xelantis.com).
 
 - **Epics 1–6** (Foundation, Stations, Zoom layers, Live data, Station panel, Short-term historical up to 28d via EA API) are complete.
-- **Epic 7** (Supabase + ingest pipeline) is live: `7d` and `28d` time ranges now query Supabase `station_daily_totals` directly. Supabase holds daily totals from early May 2026 onwards. The Railway cron job (`ingest_archive.js`) runs daily at 06:00 UTC and fills any of the last 7 days missing from Supabase. **EA publishes each day's archive ~22:20 UTC the following day**, so the newest available day is usually 2 days old — a 404 for a recent date is normal, not an error.
+- **Epic 7** (Supabase + ingest pipeline) is live: `7d` and `28d` time ranges now query Supabase `station_daily_totals` directly. Supabase holds daily totals from early May 2026 onwards. The Railway cron job (`ingest/cron.js`) runs **every 15 minutes**: it refreshes 6h/24h per-station totals in `recent_totals` and fills any of the last 7 days missing from `station_daily_totals`. **EA publishes each day's archive ~22:20 UTC the following day**, so the newest available day is usually 2 days old — a 404 for a recent date is normal, not an error.
 - **Epic 8** (Period vs historic averages) is Phase 3 — not yet started.
 - `3 months` and `1 year` presets are not yet wired up (Phase 3).
 
@@ -41,7 +41,7 @@ See [spec/implementation-plan.md](spec/implementation-plan.md) for the full epic
 | Runtime | Node.js | `ingest_archive.js` — CommonJS |
 | DB client | `@supabase/supabase-js` | Service role key for writes |
 | CSV parsing | `csv-parse` | |
-| Schedule | Railway Cron Job | Daily at 06:00 UTC; Node >=20 (`engines` in package.json) |
+| Schedule | Railway Cron Job | `*/15 * * * *` → `node cron.js`; Node >=20 (`engines` in package.json) |
 
 ## Repository Structure
 
@@ -73,7 +73,10 @@ rainfall-uk-proving/
 │   ├── playwright.config.ts
 │   └── package.json
 ├── ingest/               # Railway Cron — daily EA archive → Supabase
-│   ├── ingest_archive.js # Main cron entry point (node ingest_archive.js)
+│   ├── cron.js           # Railway cron entry point (every 15 min): recent totals + archive gap fill
+│   ├── recent_totals.js  # 6h/24h per-station totals → Supabase recent_totals
+│   ├── recent_totals.sql # One-off table + RLS setup for recent_totals
+│   ├── ingest_archive.js # Daily archive CSV → station_daily_totals (also runnable alone)
 │   ├── backfill.js       # One-shot backfill: node backfill.js --days 60
 │   ├── ingest_archive.test.js
 │   ├── package.json
@@ -117,6 +120,8 @@ cd ingest
 npm install
 cp .env.example .env   # fill in SUPABASE_URL + SUPABASE_SERVICE_KEY
 
+node cron.js                        # what Railway runs: recent totals + archive gap fill
+node recent_totals.js               # refresh 6h/24h totals only
 node ingest_archive.js              # fill any gaps in the last 7 days (skips unpublished days)
 node ingest_archive.js --date 2026-05-01   # ingest a specific date
 node backfill.js --days 60          # backfill last 60 days
@@ -207,6 +212,12 @@ $$;
 - **Themes**: `bbc` (dark, continuous blues, green/yellow extremes) and `metoffice` (light, 8 radar bands). `MapGL` is remounted (`key={theme}`) on toggle; the view is preserved.
 - Zoom limited to 4.5–11.
 
+Table: `recent_totals` (created by `ingest/recent_totals.sql`)
+
+- Two rows: `hours` = 6 and 24, each with `computed_at`, `station_count` and `totals` (JSONB `{ station_ref: mm }`)
+- One row per window keeps the read to a single row — no PostgREST 1,000-row limit
+- anon has SELECT via RLS policy; cron writes with the service key
+
 ## Key Data Contracts
 
 - Station: `{ id, label, lat, long, region, gridReference }`
@@ -218,7 +229,7 @@ $$;
 | Range | Source | Status |
 |---|---|---|
 | 15m | EA API `?latest` | Live |
-| 6h, 24h | Vercel Function `/api/rainfall-totals?hours=6\|24` (pages EA `/data/readings?_sorted` server-side) | Live |
+| 6h, 24h | Supabase `recent_totals` (refreshed every 15 min by cron); falls back to Vercel Function `/api/rainfall-totals` if missing or >1 h old | Live |
 | 7d, 28d | Supabase `station_daily_totals` | Live |
 | custom | EA API `startdate`/`enddate` (≤28d) | Live |
 | 3 months, 1 year | Supabase (presets not yet wired up) | Phase 3 |
@@ -260,7 +271,7 @@ See `spec/implementation-plan.md` for full download URL.
 | Layer | Platform | Notes |
 |---|---|---|
 | Frontend | Vercel | Domain: `rain.xelantis.com`; **manual deploy — git push does NOT auto-deploy** |
-| Archive cron | Railway | Cron Job; runs `node ingest/ingest_archive.js` daily at 06:00 UTC |
+| Ingest cron | Railway | Cron Job `*/15 * * * *`; runs `node cron.js` (from `ingest/railway.toml`) |
 | Database | Supabase | PostgreSQL; anon key for reads, service key for cron writes |
 
 ### Deploying the frontend

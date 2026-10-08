@@ -1,14 +1,14 @@
 {
   "name": "rainfall-ingest",
   "version": "1.0.0",
-  "description": "Daily EA archive ingest to Supabase",
+  "description": "EA rainfall ingest to Supabase: recent 6h/24h totals + daily archive",
   "main": "ingest_archive.js",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "start": "node ingest_archive.js",
-    "test": "node --test ingest_archive.test.js"
+    "start": "node cron.js",
+    "test": "node --test ingest_archive.test.js recent_totals.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

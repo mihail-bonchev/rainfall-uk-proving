@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../test/msw/server'
-import { fetchLatestReadings, fetchReadings, ReadingFetchError } from './readingService'
+import { fetchLatestReadings, fetchReadings, fetchRecentTotals, ReadingFetchError } from './readingService'
 
 const EA_BASE = 'https://environment.data.gov.uk/flood-monitoring'
 
@@ -111,5 +111,39 @@ describe('fetchReadings', () => {
       ),
     )
     await expect(fetchReadings({ startdate: '2025-11-21', enddate: '2025-11-21' })).rejects.toThrow(ReadingFetchError)
+  })
+})
+
+describe('fetchRecentTotals', () => {
+  // Matches the placeholder VITE_SUPABASE_URL set in vitest.config.ts.
+  const RECENT_TOTALS_URL = 'http://localhost:54321/rest/v1/recent_totals'
+  const apiTotals = () => http.get('/api/rainfall-totals', () => HttpResponse.json({ totals: { FALLBACK: 9 } }))
+
+  it('uses the precomputed Supabase row when it is fresh', async () => {
+    server.use(
+      http.get(RECENT_TOTALS_URL, () =>
+        HttpResponse.json({ computed_at: new Date().toISOString(), totals: { E1: 1.2, E2: 0 } }),
+      ),
+      apiTotals(),
+    )
+    const totals = await fetchRecentTotals(6)
+    expect(Object.fromEntries(totals)).toEqual({ E1: 1.2, E2: 0 })
+  })
+
+  it('falls back to the Vercel function when the row is stale (cron stopped)', async () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000).toISOString()
+    server.use(
+      http.get(RECENT_TOTALS_URL, () => HttpResponse.json({ computed_at: twoHoursAgo, totals: { E1: 1 } })),
+      apiTotals(),
+    )
+    expect(Object.fromEntries(await fetchRecentTotals(24))).toEqual({ FALLBACK: 9 })
+  })
+
+  it('falls back to the Vercel function when Supabase errors', async () => {
+    server.use(
+      http.get(RECENT_TOTALS_URL, () => HttpResponse.json({ message: 'relation does not exist' }, { status: 404 })),
+      apiTotals(),
+    )
+    expect(Object.fromEntries(await fetchRecentTotals(6))).toEqual({ FALLBACK: 9 })
   })
 })

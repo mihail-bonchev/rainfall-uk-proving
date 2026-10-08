@@ -1,5 +1,6 @@
 import type { Reading } from '../../types/api'
 import type { DateRangeParams } from '../../utils/dateUtils'
+import { supabase } from '../db/supabaseClient'
 
 const EA_BASE = 'https://environment.data.gov.uk/flood-monitoring'
 
@@ -119,9 +120,33 @@ export async function fetchReadings(params: DateRangeParams): Promise<Reading[]>
   return readings
 }
 
-// Per-station totals for the last 6/24 h, computed by the /api/rainfall-totals
-// Vercel function (the bulk EA endpoint is too slow/paginated to do in-browser).
+// Totals older than this mean the 15-minute Railway cron has stopped.
+const RECENT_TOTALS_MAX_AGE_MS = 60 * 60_000
+
+async function fetchPrecomputedTotals(hours: 6 | 24): Promise<Map<string, number> | null> {
+  try {
+    const { data, error } = await supabase
+      .from('recent_totals')
+      .select('computed_at, totals')
+      .eq('hours', hours)
+      .maybeSingle()
+    if (error || !data) return null
+    if (Date.now() - Date.parse(data.computed_at) > RECENT_TOTALS_MAX_AGE_MS) return null
+    return new Map(Object.entries(data.totals as Record<string, number>).map(([ref, mm]) => [ref, Number(mm)]))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Per-station totals for the last 6/24 h. Reads the row the Railway cron
+ * refreshes every 15 min (instant); falls back to the /api/rainfall-totals
+ * Vercel function (slow on a cold cache) if that row is missing or stale.
+ */
 export async function fetchRecentTotals(hours: 6 | 24): Promise<Map<string, number>> {
+  const precomputed = await fetchPrecomputedTotals(hours)
+  if (precomputed) return precomputed
+
   const res = await fetch(`/api/rainfall-totals?hours=${hours}`)
   if (!res.ok) throw new ReadingFetchError(res.status, `Totals API error: ${res.status}`)
   const body = (await res.json()) as { totals: Record<string, number> }

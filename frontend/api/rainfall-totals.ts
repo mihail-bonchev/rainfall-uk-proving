@@ -53,7 +53,15 @@ export function accumulate(items: EAReading[], fromMs: number, toMs: number, tot
 async function fetchPage(fetchImpl: FetchLike, from: string, to: string, offset: number): Promise<EAReading[]> {
   const url = `${EA_READINGS}?parameter=rainfall&_sorted&startdate=${from}&enddate=${to}&_limit=${PAGE_SIZE}&_offset=${offset}`
   for (let attempt = 1; ; attempt++) {
-    const res = await fetchImpl(url)
+    let res: Awaited<ReturnType<FetchLike>>
+    try {
+      res = await fetchImpl(url)
+    } catch (err) {
+      // Dropped connections ("fetch failed") are transient on the EA API.
+      if (attempt >= RETRIES) throw new Error(`EA API unreachable at offset ${offset}: ${(err as Error).message}`, { cause: err })
+      await new Promise((r) => setTimeout(r, 1500 * attempt))
+      continue
+    }
     if (res.ok) return ((await res.json()) as { items?: EAReading[] }).items ?? []
     if (res.status < 500 || attempt >= RETRIES) throw new Error(`EA API ${res.status} at offset ${offset}`)
     await new Promise((r) => setTimeout(r, 1500 * attempt))
@@ -75,7 +83,8 @@ async function fetchWindow(
     )
     pages.forEach(onPage)
     const last = pages[pages.length - 1]
-    const reachedEnd = pages.some((p) => p.length < PAGE_SIZE)
+    // Only an empty page means the end: EA pages can come back a few items short.
+    const reachedEnd = pages.some((p) => p.length === 0)
     const passedWindow = last.length > 0 && Date.parse(last[last.length - 1].dateTime) <= fromMs
     if (reachedEnd || passedWindow) return
   }

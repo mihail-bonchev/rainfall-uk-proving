@@ -184,4 +184,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { processRow, buildUpsertRows, ingestArchive, lookbackDates };
+module.exports = { processRow, buildUpsertRows, ingestArchive, lookbackDates, fillArchiveGaps: main };

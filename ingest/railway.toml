@@ -2,4 +2,4 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "node ingest_archive.js"
+startCommand = "node cron.js"
