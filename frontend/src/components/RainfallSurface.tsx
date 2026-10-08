@@ -81,7 +81,7 @@ export function RainfallSurface({ readingsMap, scale, theme }: Props) {
     }
   }, [mapRef, field, scale])
 
-  if (!url || !labelLayerId) return null
+  if (!field || !url || !labelLayerId) return null
 
   return (
     <>

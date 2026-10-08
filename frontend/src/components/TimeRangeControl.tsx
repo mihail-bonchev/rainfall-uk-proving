@@ -1,5 +1,6 @@
 import type { DateRange } from 'react-day-picker'
 import type { TimeRange } from '../types/api'
+import { Loader2 } from 'lucide-react'
 import { Button } from './ui/button'
 import { DateRangePicker } from './DateRangePicker'
 
@@ -16,6 +17,8 @@ interface Props {
   onChange: (range: TimeRange) => void
   customRange?: DateRange
   onCustomRange?: (range: DateRange) => void
+  /** Ranges whose data is still on its first load. */
+  pending?: Partial<Record<TimeRange, boolean>>
 }
 
 function yesterdayUTC(): string {
@@ -24,8 +27,9 @@ function yesterdayUTC(): string {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
 }
 
-export function TimeRangeControl({ value, onChange, customRange, onCustomRange }: Props) {
+export function TimeRangeControl({ value, onChange, customRange, onCustomRange, pending = {} }: Props) {
   const showCaveat = value === '7d' || value === '28d'
+  const activePending = !!pending[value]
 
   return (
     <div
@@ -47,8 +51,10 @@ export function TimeRangeControl({ value, onChange, customRange, onCustomRange }
             size="sm"
             onClick={() => onChange(preset.value)}
             aria-pressed={value === preset.value}
-            className="whitespace-nowrap"
+            aria-busy={!!pending[preset.value]}
+            className={`whitespace-nowrap ${pending[preset.value] && value !== preset.value ? 'opacity-60' : ''}`}
           >
+            {pending[preset.value] && <Loader2 className="size-3 animate-spin" aria-hidden />}
             {preset.label}
           </Button>
         ))}
@@ -61,6 +67,11 @@ export function TimeRangeControl({ value, onChange, customRange, onCustomRange }
           }}
         />
       </div>
+      {activePending && (
+        <p data-testid="loading-caption" className="text-xs text-slate-400 mt-0.5 whitespace-nowrap">
+          Collecting readings from ~1,000 stations — can take up to a minute…
+        </p>
+      )}
       {showCaveat && (
         <p
           data-testid="freshness-caveat"

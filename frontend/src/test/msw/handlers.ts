@@ -7,6 +7,8 @@ const EMPTY_GEOJSON = { type: 'FeatureCollection', features: [] }
 export const handlers = [
   http.get('/data/ea-areas.geojson', () => HttpResponse.json(EMPTY_GEOJSON)),
 
+  http.get('/api/rainfall-totals', () => HttpResponse.json({ totals: {} })),
+
   http.get(`${EA_BASE}/id/stations`, () => {
     return HttpResponse.json({
       meta: { totalCount: 1027 },

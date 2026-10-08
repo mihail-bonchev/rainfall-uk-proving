@@ -16,7 +16,7 @@ import { BasemapStyler } from './components/BasemapStyler'
 import { BASEMAP_STYLE } from './utils/basemap'
 import { getRainfallScale, type MapTheme } from './utils/rainfallScale'
 import { Button } from './components/ui/button'
-import { useLatestReadings } from './hooks/useLatestReadings'
+import { useLatestReadings, useRecentTotalsWarmup } from './hooks/useLatestReadings'
 import { downloadRegionalCsv } from './utils/csvExport'
 import type { TimeRange } from './types/api'
 
@@ -56,6 +56,7 @@ function App() {
     failureCount,
     isFetching,
   } = useLatestReadings(timeRange, customRange)
+  const pendingRanges = useRecentTotalsWarmup()
 
   return (
     <div data-testid="map-root" style={{ position: 'relative', width: '100vw', height: '100vh' }}>
@@ -83,6 +84,7 @@ function App() {
         onChange={setTimeRange}
         customRange={customRange}
         onCustomRange={setCustomRange}
+        pending={pendingRanges}
       />
       <Button
         data-testid="regions-btn"

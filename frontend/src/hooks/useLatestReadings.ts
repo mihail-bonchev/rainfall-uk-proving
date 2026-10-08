@@ -1,10 +1,31 @@
-import { useQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery } from '@tanstack/react-query'
 import type { DateRange } from 'react-day-picker'
 import type { TimeRange } from '../types/api'
 import { fetchLatestReadings, fetchReadings, fetchRecentTotals } from '../services/api/readingService'
 import { upsertReadings } from '../services/db/readingStore'
 import { getDateRangeForPreset, getDateRangeForCustom } from '../utils/dateUtils'
 import { useHistoricalReadings } from './useHistoricalReadings'
+
+// Shared by the map and the background warm-up so both use one cache entry.
+export function recentTotalsQuery(range: '6h' | '24h') {
+  return queryOptions({
+    queryKey: ['recent-totals', range],
+    queryFn: () => fetchRecentTotals(range === '6h' ? 6 : 24),
+    refetchInterval: 5 * 60_000,
+    refetchIntervalInBackground: false,
+    staleTime: 5 * 60_000,
+  })
+}
+
+/**
+ * Starts loading 6h/24h totals as soon as the app opens (they can take up to a
+ * minute on a cold server cache) and reports which are still on first load.
+ */
+export function useRecentTotalsWarmup(): Partial<Record<TimeRange, boolean>> {
+  const sixHours = useQuery(recentTotalsQuery('6h'))
+  const day = useQuery(recentTotalsQuery('24h'))
+  return { '6h': sixHours.isPending, '24h': day.isPending }
+}
 
 export function useLatestReadings(timeRange: TimeRange, customRange?: DateRange) {
   const isHistorical = timeRange === '7d' || timeRange === '28d'
@@ -15,13 +36,9 @@ export function useLatestReadings(timeRange: TimeRange, customRange?: DateRange)
     { enabled: isHistorical },
   )
 
-  const totalsResult = useQuery<Map<string, number>>({
-    queryKey: ['recent-totals', timeRange],
-    queryFn: () => fetchRecentTotals(timeRange === '6h' ? 6 : 24),
+  const totalsResult = useQuery({
+    ...recentTotalsQuery(timeRange === '24h' ? '24h' : '6h'),
     enabled: isRecentTotals,
-    refetchInterval: 5 * 60_000,
-    refetchIntervalInBackground: false,
-    staleTime: 5 * 60_000,
   })
 
   const eaResult = useQuery<Map<string, number>>({

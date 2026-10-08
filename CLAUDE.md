@@ -239,6 +239,7 @@ Single source of truth for surface, station dots and legend. Per time range: `fl
 ## Known data limitations
 
 - The EA bulk `/data/readings` endpoint caps at 10,000 readings per request and rejects `since=`. Unsorted, one request covers only ~130 stations. With `_sorted` it returns **newest-first across all stations**, which `api/rainfall-totals.ts` uses to page back only to the window start (~3 pages for 6h, ~10 for 24h). A fresh computation takes ~40–90 s when the EA API is slow, so the response is CDN-cached (`s-maxage=600, stale-while-revalidate=3600`). `vercel.json` sets `maxDuration: 300` and excludes `/api` from the SPA rewrite.
+- On app load, `useRecentTotalsWarmup` (in `useLatestReadings.ts`) starts fetching 6h/24h in the background so they're usually ready when clicked; their chips show a spinner (dimmed if not selected) plus a "Collecting readings…" caption until first data arrives.
 - **Custom ranges** still use the old in-browser bulk fetch and are under-sampled (~130 stations).
 - In `npm run dev`, Vite proxies `/api` to the production site (Vite can't run Vercel functions); use `vercel dev` to run the function locally.
 - The station panel fetches the clicked station's own readings from the EA (`fetchStationReadings`) for live ranges.

@@ -56,4 +56,16 @@ describe('TimeRangeControl', () => {
       expect(screen.getByTestId('custom-range-popover')).toBeInTheDocument()
     )
   })
+
+  it('dims chips whose data is still loading and marks them busy', () => {
+    render(<TimeRangeControl value="7d" onChange={vi.fn()} pending={{ '6h': true, '24h': false }} />)
+    expect(screen.getByRole('button', { name: '6h' })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: '24h' })).toHaveAttribute('aria-busy', 'false')
+    expect(screen.queryByTestId('loading-caption')).not.toBeInTheDocument()
+  })
+
+  it('explains the wait when the selected range is still loading', () => {
+    render(<TimeRangeControl value="6h" onChange={vi.fn()} pending={{ '6h': true }} />)
+    expect(screen.getByTestId('loading-caption')).toHaveTextContent('Collecting readings')
+  })
 })
