@@ -1,5 +1,5 @@
 import type { FeatureCollection, Position } from 'geojson'
-import { rainfallRgb, type MapTheme, type RainfallScale } from './rainfallScale'
+import { rainfallRgba, type MapTheme, type RainfallScale } from './rainfallScale'
 
 export interface RainPoint {
   lon: number
@@ -195,13 +195,13 @@ export function renderField(
       const mm =
         bilinear(field.num, field.width, field.height, fx, fy) /
         bilinear(field.den, field.width, field.height, fx, fy)
-      const rgb = rainfallRgb(mm, scale, theme)
+      const rgb = rainfallRgba(mm, scale, theme)
       if (!rgb) continue
       const o = (y * cw + x) * 4
       px[o] = rgb[0]
       px[o + 1] = rgb[1]
       px[o + 2] = rgb[2]
-      px[o + 3] = Math.round(255 * Math.min(1, (c - 0.01) / 0.04))
+      px[o + 3] = Math.round(255 * rgb[3] * Math.min(1, (c - 0.01) / 0.04))
     }
   }
   ctx.putImageData(img, 0, 0)

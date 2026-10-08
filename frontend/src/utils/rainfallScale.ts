@@ -38,21 +38,19 @@ export const METOFFICE_BANDS = [
   '#f5c02c', '#f58c1f', '#e8231c', '#a10e17',
 ]
 
-// Sampled from the BBC "Rainfall accumulation" graphic: pale blue (a little)
-// through deep blue, with cyan/green/yellow reserved for the extremes.
-export const BBC_STOPS: [number, string][] = [
-  [0.0, '#b9def5'],
-  [0.12, '#86c3ee'],
-  [0.28, '#4f9fe2'],
-  [0.45, '#2c78cf'],
-  [0.62, '#1f58b4'],
-  [0.76, '#2a9bd6'],
-  [0.86, '#42c9b7'],
-  [0.94, '#86e07a'],
-  [1.0, '#e6f05a'],
+// BBC-inspired ramp for the dark map: brightness rises with rain so the eye
+// goes to the wet areas — deep blue → bright blue → cyan, with green/yellow
+// reserved for the extremes. One colour per Met Office band edge
+// (floor, bounds[0..6]), interpolated in log space between edges, so small
+// totals get as much contrast as the Met Office bands instead of all landing
+// in the bottom sliver of a linear 0..max ramp.
+export const BBC_RAMP = [
+  '#1d3f8f', '#2156c9', '#2f7be6', '#3ea0f0',
+  '#5cc6f4', '#4fd8c4', '#86e07a', '#e6f05a',
 ]
 
 type RGB = [number, number, number]
+export type RGBA = [number, number, number, number]
 
 function hexToRgb(hex: string): RGB {
   const n = parseInt(hex.slice(1), 16)
@@ -60,7 +58,7 @@ function hexToRgb(hex: string): RGB {
 }
 
 const METOFFICE_RGB = METOFFICE_BANDS.map(hexToRgb)
-const BBC_RGB = BBC_STOPS.map(([t, c]) => [t, hexToRgb(c)] as const)
+const BBC_RGB = BBC_RAMP.map(hexToRgb)
 
 export function metOfficeBand(mm: number, bounds: number[]): number {
   let i = 0
@@ -68,30 +66,46 @@ export function metOfficeBand(mm: number, bounds: number[]): number {
   return i
 }
 
+/** Band edges shared by both styles: [floor, ...bounds]. */
+function edges(scale: RainfallScale): number[] {
+  return [scale.floor, ...scale.bounds]
+}
+
+/** 0..1 position on the BBC ramp (log-interpolated between band edges); -1 when dry. */
+export function bbcPosition(mm: number, scale: RainfallScale): number {
+  const e = edges(scale)
+  if (!(mm >= e[0] * 0.999)) return -1
+  if (mm >= e[e.length - 1]) return 1
+  let i = 0
+  while (mm >= e[i + 1]) i++
+  const f = Math.log(Math.max(mm, e[i]) / e[i]) / Math.log(e[i + 1] / e[i])
+  return (i + f) / (e.length - 1)
+}
+
 /**
- * Colour for a rainfall value. Met Office style leaves dry areas uncoloured
- * (null below the floor), like radar; BBC style paints dry as its palest blue
- * so dry areas on the dark map don't read as missing data.
+ * Colour + alpha (0..1) for a rainfall value, or null when dry — dry areas are
+ * left uncoloured in both styles so they read as plain map. The BBC style
+ * fades in across its first band so dry edges are soft, not hard holes.
  */
-export function rainfallRgb(mm: number, scale: RainfallScale, theme: MapTheme): RGB | null {
+export function rainfallRgba(mm: number, scale: RainfallScale, theme: MapTheme): RGBA | null {
   if (theme === 'metoffice') {
-    return mm >= scale.floor * 0.999 ? METOFFICE_RGB[metOfficeBand(mm, scale.bounds)] : null
+    if (!(mm >= scale.floor * 0.999)) return null
+    return [...METOFFICE_RGB[metOfficeBand(mm, scale.bounds)], 1]
   }
-  if (!Number.isFinite(mm)) return null
-  const t = Math.min(Math.max(mm, 0) / scale.max, 1)
-  for (let i = 1; i < BBC_RGB.length; i++) {
-    const [t1, c1] = BBC_RGB[i]
-    if (t <= t1) {
-      const [t0, c0] = BBC_RGB[i - 1]
-      const f = (t - t0) / (t1 - t0)
-      return [
-        Math.round(c0[0] + (c1[0] - c0[0]) * f),
-        Math.round(c0[1] + (c1[1] - c0[1]) * f),
-        Math.round(c0[2] + (c1[2] - c0[2]) * f),
-      ]
-    }
-  }
-  return BBC_RGB[BBC_RGB.length - 1][1] as RGB
+  const t = bbcPosition(mm, scale)
+  if (t < 0) return null
+  const x = t * (BBC_RGB.length - 1)
+  const i = Math.min(Math.floor(x), BBC_RGB.length - 2)
+  const f = x - i
+  const [c0, c1] = [BBC_RGB[i], BBC_RGB[i + 1]]
+  const firstBand = 1 / (BBC_RGB.length - 1)
+  const alpha = t >= firstBand ? 1 : 0.45 + 0.55 * (t / firstBand)
+  return [
+    Math.round(c0[0] + (c1[0] - c0[0]) * f),
+    Math.round(c0[1] + (c1[1] - c0[1]) * f),
+    Math.round(c0[2] + (c1[2] - c0[2]) * f),
+    alpha,
+  ]
 }
 
 /** MapLibre colour expression for station dots, matching the surface colours. */
@@ -101,8 +115,13 @@ export function stationColourExpression(scale: RainfallScale, theme: MapTheme): 
     const steps = scale.bounds.flatMap((b, i) => [b, METOFFICE_BANDS[i + 1]])
     return ['step', value, METOFFICE_BANDS[0], ...steps] as ExpressionSpecification
   }
-  const stops = BBC_STOPS.flatMap(([t, c]) => [t * scale.max, c])
-  return ['interpolate', ['linear'], value, ...stops] as ExpressionSpecification
+  const stops = edges(scale).flatMap((edge, i) => [edge, BBC_RAMP[i]])
+  return [
+    'case',
+    ['<', value, scale.floor],
+    '#46536f',
+    ['interpolate', ['linear'], value, ...stops],
+  ] as ExpressionSpecification
 }
 
 export function formatMm(n: number): string {

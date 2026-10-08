@@ -31,7 +31,7 @@ See [spec/implementation-plan.md](spec/implementation-plan.md) for the full epic
 | Charts | Recharts (shadcn Chart wrapper) | |
 | State/data | TanStack Query v5 + IndexedDB (idb) | |
 | Time controls | Custom preset chips + shadcn DateRangePicker | |
-| Colour scale | Two themes, toggled in UI: BBC continuous blue ramp, Met Office 8 bands | `utils/rainfallScale.ts` — thresholds rescale per time range |
+| Colour scale | Two themes, toggled in UI: BBC continuous ramp (log-spaced on the Met Office band edges), Met Office 8 bands | `utils/rainfallScale.ts` — thresholds rescale per time range; dry is uncoloured in both |
 | Historical DB | Supabase PostgreSQL | 7d/28d query `station_daily_totals` via Supabase JS client |
 | Testing | Vitest + RTL + MSW + playwright-bdd + Playwright | See [spec/testing-strategy.md](spec/testing-strategy.md) |
 
@@ -209,7 +209,7 @@ $$;
 - **Rainfall surface** (`RainfallSurface.tsx` + `utils/rainfallSurface.ts`): station totals are interpolated client-side onto a Web-Mercator grid (Gaussian-tapered inverse-distance weights, ~9 km σ, 25 km cutoff), painted to a canvas, clipped to the EA areas polygon (England coastline) and shown as a MapLibre `image` source **below the basemap labels**. Coverage fades out where no station is near. A neighbour "buddy check" (`removeOutliers`) drops stuck/zero gauges from the surface so they don't paint bullseyes. Hover shows the interpolated mm.
 - **Do not use MapLibre `heatmap` layers for rainfall** — they visualise station *density*, not rainfall amount (that was the cause of the old "England glows green" problem).
 - **Station dots** (zoom 7+): clickable, coloured on the same scale → shadcn Sheet panel.
-- **Themes**: `bbc` (dark, continuous blues, green/yellow extremes) and `metoffice` (light, 8 radar bands). `MapGL` is remounted (`key={theme}`) on toggle; the view is preserved.
+- **Themes**: `bbc` (dark; continuous ramp deep blue → bright blue → cyan → green/yellow, brighter = wetter, interpolated in log space between the same band edges as Met Office so small totals keep contrast) and `metoffice` (light, 8 radar bands). Dry (< `floor`) is transparent in both. A linear 0..max BBC ramp was tried and rejected — everything landed in its palest sliver. `MapGL` is remounted (`key={theme}`) on toggle; the view is preserved.
 - Zoom limited to 4.5–11.
 
 Table: `recent_totals` (created by `ingest/recent_totals.sql`)

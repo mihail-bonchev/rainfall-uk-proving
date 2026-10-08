@@ -1,4 +1,4 @@
-import { BBC_STOPS, METOFFICE_BANDS, formatMm, type MapTheme, type RainfallScale } from '../utils/rainfallScale'
+import { BBC_RAMP, METOFFICE_BANDS, formatMm, type MapTheme, type RainfallScale } from '../utils/rainfallScale'
 
 interface Props {
   scale: RainfallScale
@@ -21,12 +21,15 @@ export function RainfallLegend({ scale, theme }: Props) {
 }
 
 function BbcBar({ scale }: { scale: RainfallScale }) {
-  const gradient = `linear-gradient(to right, ${BBC_STOPS.map(([t, c]) => `${c} ${t * 100}%`).join(', ')})`
-  const ticks = [0, 0.2, 0.4, 0.6, 0.8, 1].map((f) => scale.max * f)
+  const gradient = `linear-gradient(to right, ${BBC_RAMP.map((c, i) => `${c} ${(i / (BBC_RAMP.length - 1)) * 100}%`).join(', ')})`
+  const ticks = [scale.floor, ...scale.bounds]
   return (
-    <div className="w-56">
-      <div className="h-2.5 rounded-sm" style={{ background: gradient }} />
-      <div className="mt-1 flex justify-between text-[10px] leading-none opacity-80">
+    <div className="w-64">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[9px] opacity-60">dry</span>
+        <div className="h-2.5 flex-1 rounded-sm" style={{ background: gradient }} />
+      </div>
+      <div className="mt-1 flex justify-between pl-5 text-[10px] leading-none opacity-80">
         {ticks.map((mm, i) => (
           <span key={i}>{formatMm(mm)}{i === ticks.length - 1 ? '+' : ''}</span>
         ))}

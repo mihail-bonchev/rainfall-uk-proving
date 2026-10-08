@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getRainfallScale, metOfficeBand, rainfallRgb, METOFFICE_BANDS } from './rainfallScale'
+import { bbcPosition, getRainfallScale, metOfficeBand, rainfallRgba, METOFFICE_BANDS } from './rainfallScale'
 
 describe('getRainfallScale', () => {
   it('scales thresholds up with the length of the period', () => {
@@ -26,24 +26,41 @@ describe('metOfficeBand', () => {
   })
 })
 
-describe('rainfallRgb', () => {
-  const scale = getRainfallScale('7d')
+describe('rainfallRgba', () => {
+  const scale = getRainfallScale('6h') // floor 0.1, bounds 0.5 1 2 4 8 16 32
 
-  it('leaves dry areas uncoloured in Met Office style, like radar', () => {
-    expect(rainfallRgb(0, scale, 'metoffice')).toBeNull()
-  })
-
-  it('paints dry areas the palest blue in BBC style', () => {
-    expect(rainfallRgb(0, scale, 'bbc')).toEqual([0xb9, 0xde, 0xf5])
+  it('leaves dry areas uncoloured in both styles', () => {
+    expect(rainfallRgba(0, scale, 'metoffice')).toBeNull()
+    expect(rainfallRgba(0, scale, 'bbc')).toBeNull()
   })
 
   it('clamps BBC colours at the top of the scale', () => {
-    expect(rainfallRgb(scale.max * 3, scale, 'bbc')).toEqual(rainfallRgb(scale.max, scale, 'bbc'))
+    expect(rainfallRgba(500, scale, 'bbc')).toEqual(rainfallRgba(32, scale, 'bbc'))
   })
 
-  it('gets lighter-to-deeper blue as rain increases in the BBC ramp', () => {
-    const light = rainfallRgb(scale.max * 0.05, scale, 'bbc')!
-    const deep = rainfallRgb(scale.max * 0.6, scale, 'bbc')!
-    expect(deep[0] + deep[1] + deep[2]).toBeLessThan(light[0] + light[1] + light[2])
+  it('gets brighter as rain increases in the BBC style', () => {
+    const brightness = (mm: number) => rainfallRgba(mm, scale, 'bbc')!.slice(0, 3).reduce((a, b) => a + b, 0)
+    expect(brightness(0.3)).toBeLessThan(brightness(2))
+    expect(brightness(2)).toBeLessThan(brightness(8))
+  })
+
+  it('fades the BBC colour in across the first band so dry edges are soft', () => {
+    expect(rainfallRgba(0.1, scale, 'bbc')![3]).toBeLessThan(rainfallRgba(0.5, scale, 'bbc')![3])
+    expect(rainfallRgba(2, scale, 'bbc')![3]).toBe(1)
+  })
+})
+
+describe('bbcPosition', () => {
+  const scale = getRainfallScale('6h')
+
+  it('spaces the Met Office band edges evenly so small totals keep contrast', () => {
+    expect(bbcPosition(0.1, scale)).toBe(0)
+    expect(bbcPosition(1, scale)).toBeCloseTo(2 / 7)
+    expect(bbcPosition(4, scale)).toBeCloseTo(4 / 7)
+    expect(bbcPosition(32, scale)).toBe(1)
+  })
+
+  it('is -1 when dry', () => {
+    expect(bbcPosition(0.05, scale)).toBe(-1)
   })
 })
