@@ -73,9 +73,11 @@ rainfall-uk-proving/
 │   ├── playwright.config.ts
 │   └── package.json
 ├── ingest/               # Railway Cron — daily EA archive → Supabase
-│   ├── cron.js           # Railway cron entry point (every 15 min): recent totals + archive gap fill
+│   ├── cron.js           # Railway cron entry point (every 15 min): recent totals + archive gap fill + daily stations refresh
+│   ├── stations.js       # EA stations → Supabase stations (≤ once/24 h; EA area by point-in-polygon)
 │   ├── recent_totals.js  # 6h/24h per-station totals → Supabase recent_totals
 │   ├── recent_totals.sql # One-off table + RLS setup for recent_totals
+│   ├── stations.sql      # One-off stations table + get_stations() RPC
 │   ├── ingest_archive.js # Daily archive CSV → station_daily_totals (also runnable alone)
 │   ├── backfill.js       # One-shot backfill: node backfill.js --days 60
 │   ├── ingest_archive.test.js
@@ -122,6 +124,7 @@ cp .env.example .env   # fill in SUPABASE_URL + SUPABASE_SERVICE_KEY
 
 node cron.js                        # what Railway runs: recent totals + archive gap fill
 node recent_totals.js               # refresh 6h/24h totals only
+node stations.js [--force]          # refresh the stations table (skips if < 24 h old unless --force)
 node ingest_archive.js              # fill any gaps in the last 7 days (skips unpublished days)
 node ingest_archive.js --date 2026-05-01   # ingest a specific date
 node backfill.js --days 60          # backfill last 60 days
@@ -211,6 +214,13 @@ $$;
 - **Station dots** (zoom 7+): clickable, coloured on the same scale → shadcn Sheet panel.
 - **Themes**: `bbc` (dark; continuous ramp deep blue → bright blue → cyan → green/yellow, brighter = wetter, interpolated in log space between the same band edges as Met Office so small totals keep contrast) and `metoffice` (light, 8 radar bands). Dry (< `floor`) is transparent in both. A linear 0..max BBC ramp was tried and rejected — everything landed in its palest sliver. `MapGL` is remounted (`key={theme}`) on toggle; the view is preserved.
 - Zoom limited to 4.5–11.
+
+Table: `stations` (created by `ingest/stations.sql`, issue #77)
+
+- One row per rain gauge from every provider: `station_ref` (PK — EA refs bare to match `station_daily_totals`; others prefixed, e.g. `sepa:14897`), `provider`, `nation`, `region`, `label`, `lat`, `long`, `grid_ref`, `updated_at`
+- Read via `supabase.rpc('get_stations')`, which returns **one JSON array** — safe past PostgREST's 1,000-row cap (verified with 1,100 rows)
+- anon: SELECT only (writes rejected with 42501); cron writes with the service key
+- Refreshed by `ingest/stations.js` at most once a day: ~1,039 EA gauges; `region` = EA area via point-in-polygon against the site's `/data/ea-areas.geojson`. EA gauges outside every EA area (7, upper Severn/Wye) get `nation = 'Wales'`, `region = NULL`. Gauges the EA stops listing are deleted.
 
 Table: `recent_totals` (created by `ingest/recent_totals.sql`)
 

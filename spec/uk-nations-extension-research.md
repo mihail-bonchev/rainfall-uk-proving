@@ -183,3 +183,22 @@ Proposed shape (described only, not built):
 - Supabase pricing summary (third-party): https://www.jetadmin.io/blog/supabase-pricing-2026-guide-to-plans-limits-and-real-world-costs/
 
 *Note: this environment's network policy blocked direct fetches of the SEPA, NRW, DfI and Met Office pages, so the details above come from search-result summaries of those pages. Items marked "to check" or "unconfirmed" need checking in Phase 0.*
+
+## 10. Verified 15 October 2026 (live checks)
+
+### Scotland (SEPA KiWIS)
+- Legacy `www2.sepa.org.uk/rainfall/api` is **retired** (redirects to rainfall.sepa.org.uk). Use KiWIS only.
+- KiWIS: no key, OGL, CORS `*`. `getTimeseriesList&ts_path=1/*/RE/15m.Total` → **304 rain gauges** (283 reported in the last 24 h).
+- `getTimeseriesValueLayer` → latest 15-min value for all gauges in one call (~3 s). `getTimeseriesValues&ts_path=1/*/RE/Hour.Total&from&to` → hourly totals for all gauges in one call (24 h ≈ 1.6 s). Daily history back to at least Jan 2025 in one call (~6.7 s).
+- `HDay.Total` is a **09:00–09:00 hydrological day**; build calendar days from `Hour.Total` to match England.
+- `LTV.HMonth.Mean` (long-term monthly means per gauge) exists — relevant to Epic 8.
+
+### Wales (NRW `rivers-and-seas/v1`, with key)
+- Product "Open Data – River Levels, Rainfall and Sea Data API": no approval, key issued instantly. Header `Ocp-Apim-Subscription-Key`.
+- `GET /api/StationData` (one call, ~1.2 s): 409 stations — **150 rain gauges** (149 online, 144 reported in the last hour), 248 river level, 10 tide.
+- **`latestValue` for rainfall is a rolling 1-hour total**, not the 15-min value (confirmed against history on several gauges; e.g. 2.8 mm latest = 2.8 mm summed over the last hour, last 15-min reading 0.4 mm). `parameterStatusEN` gives a text band ("Dry", "Light Rain", …).
+- Each gauge has its **own parameter id** (150 distinct); `historical?location=&parameter=` needs the matching pair.
+- `historical` returns **~1 year of 15-min readings** (from 2025-10-01), ~36k points / **~1.5 MB per call**. Date-range parameters (`from/to`, `startDate/endDate`, `since`) are **ignored**. Some gauges return **no history** (e.g. locations 1064, 1112).
+- **Rate limiting:** HTTP 429 with `retry-after: 13` after ~a dozen calls in quick succession. Polling 150 gauges' history every 15 min is not viable.
+- **Workable without extra access:** snapshot `StationData` every 15 min (1 call) and store each gauge's 1-hour total; 6h/24h and calendar-day totals are sums of back-to-back hourly windows. Use `historical` only for backfill (rate-limited, ~150 × 1.5 MB, once).
+- Telemetry API v1 (bulk readings) still not in any public product — asked NRW (issue #92).

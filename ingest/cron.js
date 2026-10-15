@@ -2,10 +2,12 @@
 //  1. refresh 6h/24h per-station totals in Supabase `recent_totals`
 //  2. fill any of the last 7 days missing from `station_daily_totals`
 //     (cheap when nothing is missing; a day lands soon after EA publishes it)
+//  3. refresh the `stations` table (skips itself unless > 24 h since last refresh)
 // Each job runs even if the other fails; exits 1 if either failed so Railway alerts.
 
 const { updateRecentTotals } = require('./recent_totals');
 const { fillArchiveGaps } = require('./ingest_archive');
+const { refreshStations } = require('./stations');
 
 async function run() {
   let failed = false;
@@ -23,6 +25,14 @@ async function run() {
     await fillArchiveGaps();
   } catch (err) {
     console.error('✗ archive gap fill:', err.message);
+    failed = true;
+  }
+
+  try {
+    const r = await refreshStations();
+    console.log(r.skipped ? '· stations refreshed < 24 h ago — skipped' : `✓ stations: ${r.upserted} EA (${r.withRegion} with region), ${r.removed} retired`);
+  } catch (err) {
+    console.error('✗ stations refresh:', err.message);
     failed = true;
   }
 

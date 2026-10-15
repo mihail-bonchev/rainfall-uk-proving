@@ -261,6 +261,87 @@ CREATE INDEX ON daily_station_totals (date, area_name);
 
 ---
 
+### Epic 11 — Faster First Visit & 3-Month View (Phase 4)
+
+**Goal:** First visit shows the map in a few seconds (today 15–30 s: each new browser pages ~1,040 stations from the EA), and a "3 months" preset backed by Supabase.
+
+**Approach:** move the station list into a Supabase `stations` table refreshed by the existing 15-min cron (at most once a day). This is also the table Scotland needs (Epic 12), so it is built provider-aware from the start.
+
+```sql
+CREATE TABLE stations (
+  station_ref TEXT PRIMARY KEY,      -- EA refs stay bare; other providers prefixed, e.g. 'sepa:14897'
+  provider    TEXT NOT NULL,         -- 'ea' | 'sepa' | later 'nrw'
+  nation      TEXT NOT NULL,         -- 'England' | 'Scotland' | ...
+  region      TEXT,                  -- eaAreaName for EA; NULL/'Scotland' for SEPA at first
+  label       TEXT NOT NULL,
+  lat         DOUBLE PRECISION NOT NULL,
+  long        DOUBLE PRECISION NOT NULL,
+  grid_ref    TEXT,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Read through one RPC returning a single JSON array, so ~1,300+ rows never hit PostgREST's 1,000-row cap.
+```
+
+| # | Story | Acceptance criteria |
+|---|---|---|
+| 11.1 | `stations` table + `get_stations()` RPC (JSON array), RLS anon read; SQL in `ingest/stations.sql` | Anon key gets all stations in one call; > 1,000 rows returned intact |
+| 11.2 | Cron refreshes EA stations into `stations` (skips if refreshed < 24 h ago); EA area assigned server-side with the EA areas polygons | ~1,040 EA rows with `region` set; runs at most once a day; failure doesn't block recent/daily totals |
+| 11.3 | Frontend loads stations from Supabase (IndexedDB cache kept); falls back to the EA API if Supabase fails | Cold first visit: map rain surface visible in < 5 s on desktop; offline/cached behaviour unchanged |
+| 11.4 | "3 months" preset (`3m`): `get_station_totals` over 90 days, own colour scale, freshness caveat, legend label, regional summary + CSV, station panel bars (weekly) | Selecting 3m shows a complete surface (~920 EA stations); scale/legend correct in both styles; tests updated |
+| 11.5 | *(Optional, enables "1 year" later)* Backfill England daily totals from EA archive CSVs back 1–2 years (original story 7.3) | `station_daily_totals` covers ≥ 365 days; DB stays < 100 MB |
+
+Proposed 3m scale (to be tuned on real data): floor 2, bounds 10 25 50 100 200 400 600, BBC max 400.
+
+---
+
+### Epic 12 — Scotland via SEPA (Phase 4)
+
+**Goal:** Scotland on the map with the same experience as England: surface, station dots, all presets except custom (custom stays England-only until it is reworked — parked).
+
+**Verified live on 15 Oct 2026** (see `spec/uk-nations-extension-research.md`):
+- SEPA's legacy rainfall API is **retired** (redirects) → build only on **KiWIS** `https://timeseries.sepa.org.uk/KiWIS/KiWIS?service=kisters&type=queryServices&datasource=0&format=json`. No key, OGL, CORS `*`.
+- `getTimeseriesList&ts_path=1/*/RE/15m.Total` → **304 rain gauges** (283 live in last 24 h) with lat/long.
+- `getTimeseriesValueLayer&ts_path=1/*/RE/15m.Total` → latest 15-min value for **all** gauges in one call (~3 s).
+- `getTimeseriesValues&ts_path=1/*/RE/Hour.Total&from=…&to=…` → hourly totals for **all** gauges in one call (24 h in ~1.6 s).
+- `HDay.Total` is a **09:00–09:00 hydrological day** — don't mix with EA's midnight-to-midnight days; build calendar days from `Hour.Total`.
+- History: daily series back to at least Jan 2025 for all gauges in one call (~6.7 s) → backfill is cheap.
+- Also available: `LTV.HMonth.Mean` (long-term monthly means per gauge) — useful for Epic 8 later.
+
+| # | Story | Acceptance criteria |
+|---|---|---|
+| 12.1 | `ingest/providers/sepa.js`: stations, hourly totals, latest 15-min; refs `sepa:<station_no>`; retry like EA | Unit tests with recorded fixtures; `npm run test:smoke`-style contract check for KiWIS |
+| 12.2 | SEPA stations into `stations` (nation 'Scotland'); drop gauges silent > 7 days | ~280 Scottish rows; refreshed daily with EA |
+| 12.3 | 6h/24h: cron merges SEPA hourly totals into the `recent_totals` rows | `station_count` rises by ~280; England values unchanged; SEPA outage leaves EA totals updating |
+| 12.4 | Daily totals: SEPA calendar-day totals (from `Hour.Total`) into `station_daily_totals`; cron gap-fills last 7 days | Yesterday's Scottish totals present by morning; matches SEPA hourly sums |
+| 12.5 | Backfill Scotland from the same start date as England (≥ early May 2026; further if 11.5 done) | 7d/28d/3m complete for Scotland |
+| 12.6 | 15m view includes SEPA (browser calls `getTimeseriesValueLayer` directly — CORS allowed — merged with EA latest) | 15m shows Scottish gauges; SEPA failure doesn't break England |
+| 12.7 | Map goes GB-wide: surface bounds extended north/west, clip polygon = England + Scotland (ONS "Countries (UK)" ultra-generalised, OGL), default view fits Cornwall–Shetland, Wales/NI shown as "no data yet" in legend note | Scotland surface renders; Wales/NI never look "dry"; surface render time profiled (target < 300 ms desktop) |
+| 12.8 | Sparse-gauge tuning: coverage fade explained in legend tooltip; buddy check validated on SEPA data; review top colour bands for western Highlands | No bullseyes from known-bad gauges; Highland gaps fade, not hole-punch |
+| 12.9 | Station panel for SEPA stations (KiWIS per-station series; daily bars from Supabase) | Clicking a Scottish dot shows its chart for every preset |
+| 12.10 | Regional summary grouped by nation (England areas + Scotland); attribution "Contains SEPA data © SEPA" (OGL) | Regions panel + CSV include Scotland; attribution visible |
+
+---
+
+### Epic 13 — Wales via NRW (Phase 4, discovery first)
+
+**Status:** blocked on an API key and answers from NRW. Verified 15 Oct 2026:
+- Portal `https://api-portal.naturalresources.wales/` (Azure API Management). Product **"Open Data – River Levels, Rainfall and Sea Data API"** — **no approval required**, 1 subscription per account. Unauthenticated calls return 401.
+- API `rivers-and-seas/v1`: `GET /api/StationData` (latest reading, all stations incl. rainfall, one call), `GET /api/StationData/historical?location=&parameter=` (**one station + parameter per call**; history length undocumented), `GET /api/StationData/byLocation`.
+- A richer **Telemetry API v1** (EA-style: stations, measures, `/api/measures/readings` for all measures over a period) is listed but **not in any public product** — ask NRW for access; it would make Wales as easy as Scotland.
+- Quality-controlled daily rain gauge data (OGL, CSV) exists as dataset **AfA148**, supplied on request, ~3 months behind — good for history, not live.
+- Licence note (research doc): live data "should not be stored for more than 1 calendar year" — needs written clarification.
+
+| # | Story | Acceptance criteria |
+|---|---|---|
+| 13.0 | **Admin (user):** register on the portal, subscribe to the River Levels/Rainfall/Sea product, put key in `ingest/.env` as `NRW_API_KEY` (and Railway env var later). Email NRW: Telemetry API access, storage clause, AfA148 | Key works; questions sent |
+| 13.1 | Spike (half day): count rainfall stations in `/api/StationData`, measure historical depth + rate limits, check value semantics (15-min total vs cumulative) | Written findings appended to the research doc; go/no-go for 13.2 |
+| 13.2 | Choose ingest strategy: Telemetry API bulk (if granted) **or** hourly per-station `historical` calls **or** accumulate 15-min `StationData` snapshots in a rolling table | Decision recorded with rate-limit numbers |
+| 13.3+ | Same shape as Epic 12 (adapter, stations, recent/daily totals, backfill, clip polygon adds Wales, attribution "Contains NRW data") | — |
+
+Northern Ireland: **parked** (no open rainfall feed).
+
+---
+
 ## Phase Summary
 
 | Phase | Epics | Deliverable |
@@ -268,6 +349,7 @@ CREATE INDEX ON daily_station_totals (date, area_name);
 | **Phase 1** | 1–6, 9 (partial) | Full-screen MapLibre map, live polling, zoom transitions, station panel, up to 28-day historical. Deployed. |
 | **Phase 2** | 7, 9 (complete) | Backend historical pipeline, year-range views, fully tested. |
 | **Phase 3** | 8 | Anomaly map (period vs average). |
+| **Phase 4** | 11, 12, 13 | Fast first visit + 3-month view; Scotland (SEPA); Wales (NRW) after discovery. NI parked. |
 
 ---
 
