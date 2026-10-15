@@ -20,6 +20,9 @@ export function RainfallLegend({ scale, theme }: Props) {
         <span className="h-2.5 w-2.5 rounded-[2px] bg-slate-400/60" />
         No data yet: Wales, N. Ireland
       </p>
+      <p data-testid="coverage-note" className="mt-1 text-[10px] opacity-60">
+        Fades out where no gauge is within ~25 km
+      </p>
     </div>
   )
 }

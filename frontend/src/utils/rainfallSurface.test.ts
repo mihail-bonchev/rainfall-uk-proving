@@ -41,4 +41,17 @@ describe('removeOutliers', () => {
     const out = removeOutliers([...ring(50), { lon: -1.5, lat: 52, mm: 90 }], 200, 1)
     expect(out).toHaveLength(6)
   })
+
+  it('judges an isolated gauge against a wider 50 km ring', () => {
+    // Four gauges ~40 km away (outside 25 km, inside 50 km) and one stuck-high gauge in the middle.
+    const far = [0, 1, 2, 3].map((k) => ({ lon: -4 + 0.65 * Math.cos(k * Math.PI / 2), lat: 57 + 0.36 * Math.sin(k * Math.PI / 2), mm: 30 }))
+    const out = removeOutliers([...far, { lon: -4, lat: 57, mm: 900 }], 200, 1)
+    expect(out).toHaveLength(4)
+  })
+
+  it('keeps an isolated gauge that is merely much wetter than distant neighbours', () => {
+    const far = [0, 1, 2, 3].map((k) => ({ lon: -4 + 0.65 * Math.cos(k * Math.PI / 2), lat: 57 + 0.36 * Math.sin(k * Math.PI / 2), mm: 60 }))
+    const out = removeOutliers([...far, { lon: -4, lat: 57, mm: 200 }], 200, 1)
+    expect(out).toHaveLength(5)
+  })
 })

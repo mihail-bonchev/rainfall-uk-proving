@@ -3,16 +3,16 @@ import { generateRegionalCsvContent, buildCsvFilename, downloadRegionalCsv } fro
 import type { AreaSummary } from '../services/aggregation/regionalAggregator'
 
 const AREAS: AreaSummary[] = [
-  { areaName: 'Thames', avgMm: 5.3, maxMm: 10.0, stationCount: 10, stationsWithData: 8 },
-  { areaName: 'Yorkshire', avgMm: 15.0, maxMm: 30.0, stationCount: 12, stationsWithData: 8 },
-  { areaName: 'Devon, Cornwall', avgMm: 2.5, maxMm: 4.0, stationCount: 5, stationsWithData: 3 },
+  { nation: 'England', areaName: 'Thames', avgMm: 5.3, maxMm: 10.0, stationCount: 10, stationsWithData: 8 },
+  { nation: 'England', areaName: 'Yorkshire', avgMm: 15.0, maxMm: 30.0, stationCount: 12, stationsWithData: 8 },
+  { nation: 'England', areaName: 'Devon, Cornwall', avgMm: 2.5, maxMm: 4.0, stationCount: 5, stationsWithData: 3 },
 ]
 
 describe('generateRegionalCsvContent', () => {
   it('includes the correct header row', () => {
     const csv = generateRegionalCsvContent([])
     const header = csv.split('\n')[0]
-    expect(header).toBe('Area,Avg Rainfall (mm),Stations With Data')
+    expect(header).toBe('Nation,Area,Avg Rainfall (mm),Stations With Data')
   })
 
   it('produces one row per area after the header', () => {
@@ -34,12 +34,12 @@ describe('generateRegionalCsvContent', () => {
   it('escapes area names containing commas with double quotes', () => {
     const csv = generateRegionalCsvContent([AREAS[2]])
     const dataRow = csv.split('\n')[1]
-    expect(dataRow).toMatch(/^"Devon, Cornwall"/)
+    expect(dataRow).toMatch(/^England,"Devon, Cornwall"/)
   })
 
   it('returns only the header for empty areas array', () => {
     const csv = generateRegionalCsvContent([])
-    expect(csv).toBe('Area,Avg Rainfall (mm),Stations With Data')
+    expect(csv).toBe('Nation,Area,Avg Rainfall (mm),Stations With Data')
   })
 })
 

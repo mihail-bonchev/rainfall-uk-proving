@@ -124,4 +124,23 @@ describe('RegionalSummaryPanel', () => {
     )
     expect(screen.getByTestId('regional-panel-subtitle')).toHaveTextContent('7-day')
   })
+
+  it('groups areas by nation with a heading per nation when Scotland is present', async () => {
+    vi.spyOn(stationStore, 'getStations').mockResolvedValue([
+      ...MOCK_STATIONS.map((st) => ({ ...st, nation: 'England' })),
+      { id: 'sepa:1', label: 'Glen', lat: 57, long: -4, eaAreaName: 'Scotland', gridReference: '', nation: 'Scotland' },
+    ])
+    renderPanel(true, new Map([['E0001', 5], ['E0003', 10], ['sepa:1', 20]]))
+    const headings = await screen.findAllByTestId('regional-nation-row')
+    expect(headings.map((h) => h.textContent)).toEqual(['England', 'Scotland'])
+    expect(screen.getByTestId('regional-panel-subtitle')).toHaveTextContent('England (2 EA areas) · Scotland')
+    const rows = screen.getAllByTestId('regional-row').map((r) => r.textContent)
+    expect(rows.at(-1)).toMatch(/^Scotland/)
+  })
+
+  it('shows no nation headings for England-only data', async () => {
+    renderPanel(true, new Map([['E0001', 5], ['E0003', 10]]))
+    await screen.findAllByTestId('regional-row')
+    expect(screen.queryByTestId('regional-nation-row')).toBeNull()
+  })
 })

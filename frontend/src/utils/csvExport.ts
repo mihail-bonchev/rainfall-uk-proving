@@ -12,8 +12,9 @@ function toDateStr(d: Date): string {
 }
 
 export function generateRegionalCsvContent(areas: AreaSummary[]): string {
-  const header = ['Area', 'Avg Rainfall (mm)', 'Stations With Data']
+  const header = ['Nation', 'Area', 'Avg Rainfall (mm)', 'Stations With Data']
   const rows = areas.map((a) => [
+    escapeField(a.nation),
     escapeField(a.areaName),
     escapeField(a.avgMm.toFixed(1)),
     escapeField(a.stationsWithData),

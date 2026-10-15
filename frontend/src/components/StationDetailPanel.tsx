@@ -17,6 +17,7 @@ import { Button } from './ui/button'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useStations } from '../hooks/useStations'
 import { fetchStationReadings } from '../services/api/historicalService'
+import { fetchSepaStationReadings, isSepaRef } from '../services/api/sepaService'
 import { supabase } from '../services/db/supabaseClient'
 import { toWeekly } from '../utils/rainfallAggregation'
 import { HISTORICAL_DAYS, isHistoricalRange, type HistoricalRange, type TimeRange, type Reading } from '../types/api'
@@ -106,7 +107,9 @@ function aggregateToHourly(readings: Reading[]): ChartPoint[] {
 async function fetchWindow(stationId: string, windowMs: number) {
   const to = new Date()
   const from = new Date(to.getTime() - windowMs)
-  const readings = await fetchStationReadings(stationId, from, to)
+  const readings = isSepaRef(stationId)
+    ? await fetchSepaStationReadings(stationId, from, to)
+    : await fetchStationReadings(stationId, from, to)
   return readings
     .filter((r) => new Date(r.dateTime).getTime() > from.getTime())
     .sort((a, b) => a.dateTime.localeCompare(b.dateTime))
@@ -267,18 +270,24 @@ export function StationDetailPanel({ stationId, timeRange, readingsMap, onClose,
               View {station.eaAreaName} summary
             </Button>
           )}
-          <Button variant="outline" size="sm" asChild>
-            <a
-              href={`https://environment.data.gov.uk/flood-monitoring/id/stations/${stationId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="View this station on the EA website"
-              data-testid="ea-link"
-            >
-              <ExternalLink className="mr-2 h-4 w-4" />
-              View on EA website
-            </a>
-          </Button>
+          {stationId && isSepaRef(stationId) ? (
+            <p data-testid="data-source" className="text-xs text-muted-foreground">
+              Data: SEPA (Scotland) · Contains SEPA data © SEPA
+            </p>
+          ) : (
+            <Button variant="outline" size="sm" asChild>
+              <a
+                href={`https://environment.data.gov.uk/flood-monitoring/id/stations/${stationId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="View this station on the EA website"
+                data-testid="ea-link"
+              >
+                <ExternalLink className="mr-2 h-4 w-4" />
+                View on EA website
+              </a>
+            </Button>
+          )}
         </SheetFooter>
 
         <div className="px-4" data-testid="chart-section">

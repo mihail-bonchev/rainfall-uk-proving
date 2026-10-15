@@ -234,3 +234,14 @@ describe('StationDetailPanel', () => {
     await waitFor(() => expect(spy).toHaveBeenCalled())
   })
 })
+
+describe('StationDetailPanel — Scottish (SEPA) gauge', () => {
+  it('shows a SEPA data credit instead of the EA link', async () => {
+    vi.spyOn(stationStore, 'getStations').mockResolvedValue([
+      { id: 'sepa:115225', label: 'Glenmore Lodge No 2', lat: 57.16, long: -3.68, eaAreaName: 'Scotland', gridReference: '', nation: 'Scotland' },
+    ])
+    renderWithProviders(<StationDetailPanel stationId="sepa:115225" timeRange="24h" onClose={vi.fn()} />)
+    expect(await screen.findByTestId('data-source')).toHaveTextContent('SEPA')
+    expect(screen.queryByTestId('ea-link')).toBeNull()
+  })
+})

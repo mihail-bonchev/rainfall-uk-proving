@@ -5,6 +5,9 @@ import type { Point } from 'geojson'
 import { useStations, toGeoJSON } from '../hooks/useStations'
 import { getRainfallScale, HAS_READING, stationColourExpression, type MapTheme, type RainfallScale } from '../utils/rainfallScale'
 
+// OGL v3 requires crediting each data provider.
+const RAINFALL_ATTRIBUTION = 'Rainfall: Environment Agency (OGL v3) · Contains SEPA data © SEPA'
+
 // Small clickable dots on top of the rainfall surface, coloured on the same scale.
 function makeStationCircleLayer(scale: RainfallScale, theme: MapTheme): LayerProps {
   return {
@@ -86,7 +89,7 @@ export function StationsSource({
 
   return (
     <>
-      <Source id="stations" type="geojson" data={geoJSON}>
+      <Source id="stations" type="geojson" data={geoJSON} attribution={RAINFALL_ATTRIBUTION}>
         <Layer {...makeStationCircleLayer(scale, theme)} />
       </Source>
       {tooltip && (

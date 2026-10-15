@@ -84,4 +84,16 @@ describe('aggregateByArea', () => {
     expect(result).toHaveLength(14)
     expect(result.map((a) => a.areaName).sort()).toEqual([...areaNames].sort())
   })
+
+  it('lists England areas before Scotland and carries each area\'s nation', () => {
+    const mixed: Station[] = [
+      { ...makeStation('sepa:1', 'Scotland'), nation: 'Scotland' },
+      { ...makeStation('E1', 'Yorkshire'), nation: 'England' },
+      { ...makeStation('E2', 'Anglia'), nation: 'England' },
+    ]
+    const result = aggregateByArea(new Map([['sepa:1', 1], ['E1', 2], ['E2', 3]]), mixed)
+    expect(result.map((a) => [a.nation, a.areaName])).toEqual([
+      ['England', 'Anglia'], ['England', 'Yorkshire'], ['Scotland', 'Scotland'],
+    ])
+  })
 })

@@ -1,4 +1,6 @@
 // SEPA (Scotland) KiWIS — called from the browser (CORS allowed, no key, OGL).
+import type { Reading } from '../../types/api'
+
 const SEPA_KIWIS = 'https://timeseries.sepa.org.uk/KiWIS/KiWIS?service=kisters&type=queryServices&datasource=0&format=json'
 
 // A gauge whose latest 15-min value is older than this is treated as not reporting.
@@ -24,4 +26,20 @@ export async function fetchSepaLatest(nowMs = Date.now()): Promise<Map<string, n
     out.set(`sepa:${x.station_no}`, x.ts_value)
   }
   return out
+}
+
+export const isSepaRef = (ref: string) => ref.startsWith('sepa:')
+
+/** One gauge's 15-min totals between two instants (timestamps mark the end of each interval). */
+export async function fetchSepaStationReadings(ref: string, from: Date, to: Date): Promise<Reading[]> {
+  const stationNo = ref.slice('sepa:'.length)
+  const res = await fetch(
+    `${SEPA_KIWIS}&request=getTimeseriesValues&ts_path=1/${encodeURIComponent(stationNo)}/RE/15m.Total` +
+      `&from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}&returnfields=Timestamp,Value`,
+  )
+  if (!res.ok) throw new Error(`SEPA KiWIS error: ${res.status}`)
+  const series = (await res.json()) as { data?: [string, number | null][] }[]
+  return (series[0]?.data ?? [])
+    .filter(([, v]) => typeof v === 'number' && v >= 0)
+    .map(([dateTime, value]) => ({ stationRef: ref, dateTime, value: value as number }))
 }

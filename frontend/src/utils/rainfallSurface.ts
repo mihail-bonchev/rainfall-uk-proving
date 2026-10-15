@@ -54,19 +54,27 @@ const QC_RADIUS_KM = 25
 export function removeOutliers(points: RainPoint[], scaleMax: number, scaleFloor: number): RainPoint[] {
   const xy = points.map((p) => [p.lon * kmPerDegLon(p.lat), p.lat * KM_PER_DEG_LAT])
   const r2max = QC_RADIUS_KM * QC_RADIUS_KM
-  return points.filter((p, i) => {
+  const neighbours = (i: number, r2: number) => {
     const near: number[] = []
     for (let k = 0; k < points.length; k++) {
       if (k === i) continue
       const dx = xy[k][0] - xy[i][0]
       const dy = xy[k][1] - xy[i][1]
-      if (dx * dx + dy * dy <= r2max) near.push(points[k].mm)
+      if (dx * dx + dy * dy <= r2) near.push(points[k].mm)
     }
+    return near.sort((a, b) => a - b)
+  }
+  return points.filter((p, i) => {
+    let near = neighbours(i, r2max)
+    // Isolated gauges (sparse Highlands, ~13% of SEPA's) are judged against a wider 50 km
+    // ring with looser limits, since real totals vary more over that distance.
+    const wide = near.length < 3
+    if (wide) near = neighbours(i, 4 * r2max)
     if (near.length < 3) return true
-    near.sort((a, b) => a - b)
     const median = near[Math.floor(near.length / 2)]
-    const tooHigh = p.mm > median * 3 && p.mm - median > scaleMax * 0.3
-    const tooLow = p.mm < median * 0.2 && median > scaleFloor * 4
+    const [hiRatio, hiAbs, loRatio, loFloor] = wide ? [5, 0.5, 0.1, 8] : [3, 0.3, 0.2, 4]
+    const tooHigh = p.mm > median * hiRatio && p.mm - median > scaleMax * hiAbs
+    const tooLow = p.mm < median * loRatio && median > scaleFloor * loFloor
     return !tooHigh && !tooLow
   })
 }

@@ -215,7 +215,7 @@ $$;
 
 ## Map Architecture (Frontend)
 
-- **Rainfall surface** (`RainfallSurface.tsx` + `utils/rainfallSurface.ts`): station totals are interpolated client-side onto a Web-Mercator grid covering Great Britain (`SURFACE_BOUNDS` −8.8…2.0°E, 49.7…61.0°N; 376-cell width, drawn at 3×; Gaussian-tapered inverse-distance weights, ~9 km σ, 25 km cutoff, distances use each point's own latitude), painted to a canvas, clipped to the nations with data (`NATIONS_WITH_DATA` = England, Scotland) from `public/data/uk-countries.geojson` (ONS Countries Dec 2023 BUC, OGL — attribution shown on the map) and shown as a MapLibre `image` source **below the basemap labels**. `NoDataSource.tsx` shades the other nations (Wales, NI) grey so they never read as dry; the legend says "No data yet". Gauges with no reading are faded grey dots; areas with no reporting gauge are left out of the regional summary. Coverage fades out where no station is near. A neighbour "buddy check" (`removeOutliers`) drops stuck/zero gauges from the surface so they don't paint bullseyes. Hover shows the interpolated mm.
+- **Rainfall surface** (`RainfallSurface.tsx` + `utils/rainfallSurface.ts`): station totals are interpolated client-side onto a Web-Mercator grid covering Great Britain (`SURFACE_BOUNDS` −8.8…2.0°E, 49.7…61.0°N; 376-cell width, drawn at 3×; Gaussian-tapered inverse-distance weights, ~9 km σ, 25 km cutoff, distances use each point's own latitude), painted to a canvas, clipped to the nations with data (`NATIONS_WITH_DATA` = England, Scotland) from `public/data/uk-countries.geojson` (ONS Countries Dec 2023 BUC, OGL — attribution shown on the map) and shown as a MapLibre `image` source **below the basemap labels**. `NoDataSource.tsx` shades the other nations (Wales, NI) grey so they never read as dry; the legend says "No data yet". Gauges with no reading are faded grey dots; areas with no reporting gauge are left out of the regional summary. Coverage fades out where no station is near. A neighbour "buddy check" (`removeOutliers`) drops stuck/zero gauges from the surface so they don't paint bullseyes; isolated gauges (< 3 neighbours in 25 km — ~13% of SEPA's) are judged against a 50 km ring with looser limits (~8 Highland gauges remain too remote to judge). Hover shows the interpolated mm.
 - **Do not use MapLibre `heatmap` layers for rainfall** — they visualise station *density*, not rainfall amount (that was the cause of the old "England glows green" problem).
 - **Station dots** (zoom 7+): clickable, coloured on the same scale → shadcn Sheet panel.
 - **Themes**: `bbc` (dark; continuous ramp deep blue → bright blue → cyan → green/yellow, brighter = wetter, interpolated in log space between the same band edges as Met Office so small totals keep contrast) and `metoffice` (light, 8 radar bands). Dry (< `floor`) is transparent in both. A linear 0..max BBC ramp was tried and rejected — everything landed in its palest sliver. `MapGL` is remounted (`key={theme}`) on toggle; the view is preserved.
@@ -263,7 +263,7 @@ Single source of truth for surface, station dots and legend. Per time range: `fl
 | 24h | 0.2 | 1 2 4 8 16 32 64 | 50 |
 | 7d | 0.5 | 2 5 10 20 40 80 160 | 80 |
 | 28d | 1 | 5 10 25 50 100 200 300 | 200 |
-| 3m | 2 | 25 50 75 100 150 250 400 | 400 |
+| 3m | 2 | 25 50 100 150 250 400 600 | 400 |
 
 ## Known data limitations
 

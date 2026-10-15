@@ -4,7 +4,7 @@ import { Button } from './ui/button'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useStations } from '../hooks/useStations'
 import { useRegionalSummary } from '../hooks/useRegionalSummary'
-import type { AreaSummary } from '../services/aggregation/regionalAggregator'
+import { NATION_ORDER, type AreaSummary } from '../services/aggregation/regionalAggregator'
 import type { TimeRange } from '../types/api'
 
 type SortKey = keyof Pick<AreaSummary, 'areaName' | 'avgMm' | 'stationsWithData'>
@@ -86,8 +86,16 @@ export function RegionalSummaryPanel({ open, onClose, timeRange, readingsMap, on
     }
   }
 
-  const sorted = sortAreas(areas, sortKey, sortDir)
   const { q1, q3 } = computeQuartiles(areas)
+  // One section per nation (England's EA areas, then Scotland, …), sorted within each section.
+  const nations = NATION_ORDER.filter((n) => areas.some((a) => a.nation === n))
+  const sections = nations.map((nation) => ({
+    nation,
+    rows: sortAreas(areas.filter((a) => a.nation === nation), sortKey, sortDir),
+  }))
+  const subtitle = nations
+    .map((n) => (n === 'England' ? `England (${areas.filter((a) => a.nation === n).length} EA areas)` : n))
+    .join(' · ')
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose() }}>
@@ -101,7 +109,7 @@ export function RegionalSummaryPanel({ open, onClose, timeRange, readingsMap, on
             Regional Summary
           </SheetTitle>
           <SheetDescription data-testid="regional-panel-subtitle">
-            {TIME_RANGE_LABELS[timeRange]} · All 14 EA areas
+            {TIME_RANGE_LABELS[timeRange]}{subtitle ? ` · ${subtitle}` : ''}
           </SheetDescription>
         </SheetHeader>
 
@@ -116,14 +124,22 @@ export function RegionalSummaryPanel({ open, onClose, timeRange, readingsMap, on
                 </tr>
               </thead>
               <tbody>
-                {sorted.length === 0 ? (
+                {areas.length === 0 ? (
                   <tr>
                     <td data-testid="regional-no-data" colSpan={3} className="px-3 py-8 text-center text-muted-foreground">
                       No data for this period
                     </td>
                   </tr>
                 ) : (
-                  sorted.map((area) => {
+                  sections.flatMap(({ nation, rows }) => [
+                    nations.length > 1 && (
+                      <tr key={`nation-${nation}`} data-testid="regional-nation-row">
+                        <td colSpan={3} className="px-3 pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {nation}
+                        </td>
+                      </tr>
+                    ),
+                    ...rows.map((area) => {
                     const isHigh = area.avgMm > q3
                     const isLow = area.avgMm < q1 && area.stationsWithData > 0
                     return (
@@ -141,7 +157,8 @@ export function RegionalSummaryPanel({ open, onClose, timeRange, readingsMap, on
                         <td className="px-3 py-2 tabular-nums">{area.stationsWithData} / {area.stationCount}</td>
                       </tr>
                     )
-                  })
+                  }),
+                  ])
                 )}
               </tbody>
             </table>
