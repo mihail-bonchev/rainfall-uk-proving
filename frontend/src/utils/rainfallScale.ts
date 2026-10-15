@@ -21,6 +21,8 @@ const SCALES: Record<RainfallScale['key'], RainfallScale> = {
   '24h': { key: '24h', floor: 0.2,  bounds: [1, 2, 4, 8, 16, 32, 64], max: 50, label: '24-hour total' },
   '7d':  { key: '7d',  floor: 0.5,  bounds: [2, 5, 10, 20, 40, 80, 160], max: 80, label: '7-day total' },
   '28d': { key: '28d', floor: 1,    bounds: [5, 10, 25, 50, 100, 200, 300], max: 200, label: '28-day total' },
+  // Tuned on real 90-day totals (Jul–Oct 2026: median 109 mm, IQR 85–160): no band holds > ~31% of gauges.
+  '3m':  { key: '3m',  floor: 2,    bounds: [25, 50, 75, 100, 150, 250, 400], max: 400, label: '3-month total' },
 }
 
 export function getRainfallScale(timeRange: TimeRange, customRange?: DateRange): RainfallScale {

@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import type { UseQueryResult } from '@tanstack/react-query'
 import { supabase } from '../services/db/supabaseClient'
+import { HISTORICAL_DAYS, type HistoricalRange } from '../types/api'
 
 export function useHistoricalReadings(
-  timeRange: '7d' | '28d',
+  timeRange: HistoricalRange,
   options: { enabled?: boolean } = {},
 ): UseQueryResult<Map<string, number>> {
-  const days = timeRange === '7d' ? 7 : 28
+  const days = HISTORICAL_DAYS[timeRange]
 
   const today = new Date()
   const todayStr = today.toISOString().slice(0, 10)

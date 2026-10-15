@@ -1,6 +1,6 @@
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import type { DateRange } from 'react-day-picker'
-import type { TimeRange } from '../types/api'
+import { isHistoricalRange, type TimeRange } from '../types/api'
 import { fetchLatestReadings, fetchReadings, fetchRecentTotals } from '../services/api/readingService'
 import { upsertReadings } from '../services/db/readingStore'
 import { getDateRangeForPreset, getDateRangeForCustom } from '../utils/dateUtils'
@@ -28,11 +28,11 @@ export function useRecentTotalsWarmup(): Partial<Record<TimeRange, boolean>> {
 }
 
 export function useLatestReadings(timeRange: TimeRange, customRange?: DateRange) {
-  const isHistorical = timeRange === '7d' || timeRange === '28d'
+  const isHistorical = isHistoricalRange(timeRange)
   const isRecentTotals = timeRange === '6h' || timeRange === '24h'
 
   const historicalResult = useHistoricalReadings(
-    (isHistorical ? timeRange : '7d') as '7d' | '28d',
+    isHistorical ? timeRange : '7d',
     { enabled: isHistorical },
   )
 

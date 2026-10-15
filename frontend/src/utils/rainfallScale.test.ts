@@ -5,6 +5,7 @@ describe('getRainfallScale', () => {
   it('scales thresholds up with the length of the period', () => {
     expect(getRainfallScale('24h').max).toBeLessThan(getRainfallScale('7d').max)
     expect(getRainfallScale('7d').max).toBeLessThan(getRainfallScale('28d').max)
+    expect(getRainfallScale('28d').max).toBeLessThan(getRainfallScale('3m').max)
   })
 
   it('picks a custom-range scale from the number of days selected', () => {

@@ -34,6 +34,14 @@ describe('useHistoricalReadings', () => {
     expect(result.current.data?.get('E0002')).toBeCloseTo(10.0)
   })
 
+  it('asks Supabase for a 90-day window for 3m', async () => {
+    mockRpc.mockResolvedValueOnce({ data: [], error: null })
+    const { result } = renderHook(() => useHistoricalReadings('3m'), { wrapper: makeWrapper() })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const { p_start, p_end } = mockRpc.mock.calls[0][1] as { p_start: string; p_end: string }
+    expect((Date.parse(p_end) - Date.parse(p_start)) / 86_400_000).toBe(90)
+  })
+
   it('coerces PostgREST string-typed NUMERIC values to numbers', async () => {
     // PostgREST returns NUMERIC columns (including aggregates) as strings.
     mockRpc.mockResolvedValueOnce({

@@ -39,6 +39,11 @@ export function getDateRangeForPreset(preset: TimeRange): DateRangeParams {
       from.setDate(from.getDate() - 28)
       return { startdate: toDateStr(from), enddate: toDateStr(now) }
     }
+    case '3m': {
+      const from = new Date(now)
+      from.setDate(from.getDate() - 90)
+      return { startdate: toDateStr(from), enddate: toDateStr(now) }
+    }
     default: {
       const from = new Date(now.getTime() - 15 * 60 * 1000)
       return { startdate: toDateStr(from), enddate: toDateStr(now), fromMs: from.getTime() }
@@ -63,6 +68,11 @@ export function getFromDate(preset: TimeRange): Date {
     case '28d': {
       const d = new Date(now)
       d.setDate(d.getDate() - 28)
+      return d
+    }
+    case '3m': {
+      const d = new Date(now)
+      d.setDate(d.getDate() - 90)
       return d
     }
     default:

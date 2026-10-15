@@ -5,7 +5,7 @@ import { TimeRangeControl } from './TimeRangeControl'
 describe('TimeRangeControl', () => {
   it('renders all preset chips', () => {
     render(<TimeRangeControl value="15m" onChange={vi.fn()} />)
-    for (const label of ['15m', '6h', '24h', '7d', '28d', 'Custom']) {
+    for (const label of ['15m', '6h', '24h', '7d', '28d', '3m', 'Custom']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
     }
   })
@@ -38,6 +38,11 @@ describe('TimeRangeControl', () => {
 
   it('shows freshness caveat for 28d', () => {
     render(<TimeRangeControl value="28d" onChange={vi.fn()} />)
+    expect(screen.getByTestId('freshness-caveat')).toBeInTheDocument()
+  })
+
+  it('shows freshness caveat for 3m', () => {
+    render(<TimeRangeControl value="3m" onChange={vi.fn()} />)
     expect(screen.getByTestId('freshness-caveat')).toBeInTheDocument()
   })
 

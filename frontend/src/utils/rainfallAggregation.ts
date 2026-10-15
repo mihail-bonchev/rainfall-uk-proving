@@ -13,3 +13,13 @@ export function computeAreaAverages(stationsGeoJSON: FeatureCollection): Map<str
     [...sums.entries()].map(([area, { sum, count }]) => [area, count > 0 ? sum / count : 0]),
   )
 }
+
+/** Sums consecutive daily points into 7-day buckets, labelled by each bucket's first day. */
+export function toWeekly(daily: { date: string; value: number }[]): { date: string; value: number }[] {
+  const weeks: { date: string; value: number }[] = []
+  for (let i = 0; i < daily.length; i += 7) {
+    const chunk = daily.slice(i, i + 7)
+    weeks.push({ date: chunk[0].date, value: chunk.reduce((sum, d) => sum + d.value, 0) })
+  }
+  return weeks
+}

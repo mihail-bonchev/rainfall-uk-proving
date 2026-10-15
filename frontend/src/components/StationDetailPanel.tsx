@@ -18,7 +18,8 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import { useStations } from '../hooks/useStations'
 import { fetchStationReadings } from '../services/api/historicalService'
 import { supabase } from '../services/db/supabaseClient'
-import type { TimeRange, Reading } from '../types/api'
+import { toWeekly } from '../utils/rainfallAggregation'
+import { HISTORICAL_DAYS, isHistoricalRange, type HistoricalRange, type TimeRange, type Reading } from '../types/api'
 
 const PERIOD_TOTAL_LABEL: Record<TimeRange, string> = {
   '15m': 'latest reading',
@@ -26,6 +27,7 @@ const PERIOD_TOTAL_LABEL: Record<TimeRange, string> = {
   '24h': '24-hour total',
   '7d': '7-day total',
   '28d': '28-day total',
+  '3m': '3-month total',
   'custom': 'period total',
 }
 
@@ -77,6 +79,7 @@ function timeRangeToMs(timeRange: TimeRange): number {
     '24h': 24 * 60 * MINUTE,
     '7d': 7 * 24 * 60 * MINUTE,
     '28d': 28 * 24 * 60 * MINUTE,
+    '3m': 90 * 24 * 60 * MINUTE,
     'custom': 24 * 60 * MINUTE,
   }
   return map[timeRange]
@@ -126,7 +129,7 @@ function useChartData(stationId: string | null, timeRange: TimeRange) {
     queryKey: ['chart-data', stationId, timeRange],
     queryFn: async () => {
       const readings = await fetchWindow(stationId!, timeRangeToMs(timeRange))
-      const useHourly = timeRange === '7d' || timeRange === '28d'
+      const useHourly = isHistoricalRange(timeRange)
       return useHourly
         ? aggregateToHourly(readings)
         : readings.map((r) => ({ dateTime: r.dateTime, value: r.value }))
@@ -141,8 +144,8 @@ interface DailyPoint {
   value: number
 }
 
-function useStationDailyTotals(stationId: string | null, timeRange: '7d' | '28d') {
-  const days = timeRange === '7d' ? 7 : 28
+function useStationDailyTotals(stationId: string | null, timeRange: HistoricalRange) {
+  const days = HISTORICAL_DAYS[timeRange]
   return useQuery<DailyPoint[]>({
     queryKey: ['station-daily-totals', stationId, timeRange],
     queryFn: async () => {
@@ -159,7 +162,8 @@ function useStationDailyTotals(stationId: string | null, timeRange: '7d' | '28d'
         .lt('date', todayStr)
         .order('date', { ascending: true })
       if (error) throw new Error(error.message)
-      return (data ?? []).map((row) => ({ date: row.date as string, value: Number(row.total_mm) }))
+      const daily = (data ?? []).map((row) => ({ date: row.date as string, value: Number(row.total_mm) }))
+      return timeRange === '3m' ? toWeekly(daily) : daily
     },
     enabled: !!stationId,
     staleTime: 60 * 60 * 1000,
@@ -180,7 +184,7 @@ export function StationDetailPanel({ stationId, timeRange, readingsMap, onClose,
   const station = stations.find((s) => s.id === stationId) ?? null
   const { data: reading } = useCurrentReading(stationId)
 
-  const isHistorical = timeRange === '7d' || timeRange === '28d'
+  const isHistorical = isHistoricalRange(timeRange)
   const periodTotal = stationId ? (readingsMap?.get(stationId) ?? null) : null
   const { data: chartData = [] } = useChartData(isHistorical ? null : stationId, timeRange)
   const { data: dailyData = [] } = useStationDailyTotals(
@@ -289,11 +293,11 @@ export function StationDetailPanel({ stationId, timeRange, readingsMap, onClose,
                     dataKey="date"
                     tickFormatter={dateTickFormatter}
                     tick={{ fontSize: 11 }}
-                    minTickGap={timeRange === '28d' ? 28 : 16}
+                    minTickGap={timeRange === '7d' ? 16 : 28}
                   />
                   <YAxis domain={[0, 'auto']} tick={{ fontSize: 11 }} width={32} unit=" mm" />
                   <Tooltip
-                    formatter={(v: unknown) => [`${(v as number).toFixed(1)} mm`, 'Daily total']}
+                    formatter={(v: unknown) => [`${(v as number).toFixed(1)} mm`, timeRange === '3m' ? 'Weekly total' : 'Daily total']}
                     labelFormatter={(d: unknown) =>
                       new Date(d as string).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
                     }

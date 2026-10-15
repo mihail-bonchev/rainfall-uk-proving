@@ -1,5 +1,5 @@
 import type { DateRange } from 'react-day-picker'
-import type { TimeRange } from '../types/api'
+import { isHistoricalRange, type TimeRange } from '../types/api'
 import { Loader2 } from 'lucide-react'
 import { Button } from './ui/button'
 import { DateRangePicker } from './DateRangePicker'
@@ -10,6 +10,7 @@ const PRESETS: { value: TimeRange; label: string }[] = [
   { value: '24h', label: '24h' },
   { value: '7d', label: '7d' },
   { value: '28d', label: '28d' },
+  { value: '3m', label: '3m' },
 ]
 
 interface Props {
@@ -28,7 +29,7 @@ function yesterdayUTC(): string {
 }
 
 export function TimeRangeControl({ value, onChange, customRange, onCustomRange, pending = {} }: Props) {
-  const showCaveat = value === '7d' || value === '28d'
+  const showCaveat = isHistoricalRange(value)
   const activePending = !!pending[value]
 
   return (

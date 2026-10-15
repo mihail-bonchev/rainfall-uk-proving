@@ -16,6 +16,7 @@ const TIME_RANGE_LABELS: Record<TimeRange, string> = {
   '24h': 'Last 24 hours',
   '7d': '7-day',
   '28d': '28-day',
+  '3m': '3-month',
   'custom': 'Custom period',
 }
 

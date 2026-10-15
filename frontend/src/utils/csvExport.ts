@@ -34,6 +34,7 @@ export function buildCsvFilename(timeRange: TimeRange, customRange?: DateRange):
     '24h': 1,
     '7d': 7,
     '28d': 28,
+    '3m': 90,
     'custom': 0,
   }
   const days = TIME_RANGE_DAYS[timeRange]

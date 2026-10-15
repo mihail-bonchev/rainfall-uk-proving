@@ -15,7 +15,7 @@ Epics 1–7 are complete and the app is deployed at [rain.xelantis.com](https://
 - **Epics 1–6** (Foundation, Stations, Zoom layers, Live data, Station panel, Short-term historical up to 28d via EA API) are complete.
 - **Epic 7** (Supabase + ingest pipeline) is live: `7d` and `28d` time ranges now query Supabase `station_daily_totals` directly. Supabase holds daily totals from early May 2026 onwards. The Railway cron job (`ingest/cron.js`) runs **every 15 minutes**: it refreshes 6h/24h per-station totals in `recent_totals` and fills any of the last 7 days missing from `station_daily_totals`. **EA publishes each day's archive ~22:20 UTC the following day**, so the newest available day is usually 2 days old — a 404 for a recent date is normal, not an error.
 - **Epic 8** (Period vs historic averages) is Phase 3 — not yet started.
-- `3 months` and `1 year` presets are not yet wired up (Phase 3).
+- `3 months` preset is live (#80). `1 year` needs a longer England backfill first (#81).
 
 See [spec/implementation-plan.md](spec/implementation-plan.md) for the full epic/story breakdown.
 
@@ -240,9 +240,9 @@ Table: `recent_totals` (created by `ingest/recent_totals.sql`)
 |---|---|---|
 | 15m | EA API `?latest` | Live |
 | 6h, 24h | Supabase `recent_totals` (refreshed every 15 min by cron); falls back to Vercel Function `/api/rainfall-totals` if missing or >1 h old | Live |
-| 7d, 28d | Supabase `station_daily_totals` | Live |
+| 7d, 28d, 3m | Supabase `station_daily_totals` via `get_station_totals` (3m = 90 days; station panel shows weekly bars) | Live |
 | custom | EA API `startdate`/`enddate` (≤28d) | Live |
-| 3 months, 1 year | Supabase (presets not yet wired up) | Phase 3 |
+| 1 year | Supabase (needs ≥ 365 days backfilled, #81) | Planned |
 | Period vs average | Met Office 1991–2020 baseline | Phase 3 |
 
 ## Rainfall Colour Scales (`utils/rainfallScale.ts`)
@@ -256,6 +256,7 @@ Single source of truth for surface, station dots and legend. Per time range: `fl
 | 24h | 0.2 | 1 2 4 8 16 32 64 | 50 |
 | 7d | 0.5 | 2 5 10 20 40 80 160 | 80 |
 | 28d | 1 | 5 10 25 50 100 200 300 | 200 |
+| 3m | 2 | 25 50 75 100 150 250 400 | 400 |
 
 ## Known data limitations
 
