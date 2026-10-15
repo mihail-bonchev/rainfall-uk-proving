@@ -8,6 +8,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
+const sepa = require('./providers/sepa');
 
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
@@ -84,35 +85,77 @@ async function computeRecentTotals(nowMs, fetchImpl = fetch) {
   return { windows, pages };
 }
 
-async function updateRecentTotals() {
+/**
+ * Per-gauge sums of SEPA hourly totals whose hour ends in (now - hours, now], for each window.
+ * Gauges with no hourly value in a window are omitted (no data, not dry).
+ */
+function sepaWindowTotals(hourly, nowMs, windowsHours = WINDOWS_HOURS) {
+  const out = {};
+  for (const hours of windowsHours) {
+    const fromMs = nowMs - hours * 3600000;
+    const totals = {};
+    for (const [ref, points] of hourly) {
+      if (points.some(([t]) => t > fromMs && t <= nowMs)) totals[ref] = sepa.sumWindow(points, fromMs, nowMs);
+    }
+    out[hours] = totals;
+  }
+  return out;
+}
+
+const pickProvider = (totals, prefix) =>
+  Object.fromEntries(Object.entries(totals || {}).filter(([ref]) => ref.startsWith(prefix)));
+
+/**
+ * EA (required) + SEPA (best effort). If SEPA fails, the previous run's SEPA values are
+ * carried over so Scotland doesn't vanish, and `sepaError` is returned for alerting.
+ * If the EA fails nothing is written.
+ */
+async function updateRecentTotals(fetchImpl = fetch) {
   const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = process.env;
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY');
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
   const nowMs = Date.now();
-  const { windows, pages } = await computeRecentTotals(nowMs);
-  const computedAt = new Date(nowMs).toISOString();
-  const rows = windows.map((w) => ({
-    hours: w.hours,
-    computed_at: computedAt,
-    station_count: Object.keys(w.totals).length,
-    totals: w.totals,
-  }));
+  const { windows, pages } = await computeRecentTotals(nowMs, fetchImpl);
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  let sepaTotals = null;
+  let sepaError = null;
+  try {
+    const hourly = await sepa.fetchHourlyTotals(new Date(nowMs - 25 * 3600000).toISOString(), new Date(nowMs).toISOString(), fetchImpl);
+    sepaTotals = sepaWindowTotals(hourly, nowMs);
+  } catch (err) {
+    sepaError = err.message;
+    const { data } = await supabase.from('recent_totals').select('hours, totals');
+    sepaTotals = Object.fromEntries((data || []).map((r) => [r.hours, pickProvider(r.totals, 'sepa:')]));
+  }
+
+  const computedAt = new Date(nowMs).toISOString();
+  const rows = windows.map((w) => {
+    const totals = { ...w.totals, ...(sepaTotals[w.hours] || {}) };
+    return { hours: w.hours, computed_at: computedAt, station_count: Object.keys(totals).length, totals };
+  });
+
   const { error } = await supabase.from('recent_totals').upsert(rows, { onConflict: 'hours' });
   if (error) throw new Error(`Supabase upsert to recent_totals failed: ${error.message}`);
 
-  return { pages, counts: rows.map((r) => `${r.hours}h=${r.station_count}`).join(', ') };
+  const sepaCount = Object.keys(sepaTotals[24] || {}).length;
+  return { pages, counts: rows.map((r) => `${r.hours}h=${r.station_count}`).join(', '), sepaCount, sepaError };
 }
 
 if (require.main === module) {
   const t0 = Date.now();
   updateRecentTotals()
-    .then(({ pages, counts }) => console.log(`✓ recent totals (${counts}) from ${pages} EA pages in ${((Date.now() - t0) / 1000).toFixed(1)}s`))
+    .then(({ pages, counts, sepaCount, sepaError }) => {
+      console.log(`✓ recent totals (${counts}; ${sepaCount} SEPA) from ${pages} EA pages in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+      if (sepaError) {
+        console.error(`✗ SEPA recent totals: ${sepaError} — kept previous Scottish values`);
+        process.exit(1);
+      }
+    })
     .catch((err) => {
       console.error('Fatal:', err.message);
       process.exit(1);
     });
 }
 
-module.exports = { stationRefFromMeasure, accumulate, computeRecentTotals, updateRecentTotals };
+module.exports = { stationRefFromMeasure, accumulate, computeRecentTotals, sepaWindowTotals, updateRecentTotals };

@@ -16,6 +16,10 @@ export function RainfallLegend({ scale, theme }: Props) {
         Rainfall · {scale.label}
       </p>
       {theme === 'bbc' ? <BbcBar scale={scale} /> : <MetOfficeBands scale={scale} />}
+      <p data-testid="no-data-note" className="mt-2 flex items-center gap-1.5 text-[10px] opacity-75">
+        <span className="h-2.5 w-2.5 rounded-[2px] bg-slate-400/60" />
+        No data yet: Wales, N. Ireland
+      </p>
     </div>
   )
 }

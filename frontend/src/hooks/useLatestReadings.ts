@@ -3,6 +3,7 @@ import type { DateRange } from 'react-day-picker'
 import { isHistoricalRange, type TimeRange } from '../types/api'
 import { fetchLatestReadings, fetchReadings, fetchRecentTotals } from '../services/api/readingService'
 import { upsertReadings } from '../services/db/readingStore'
+import { fetchSepaLatest } from '../services/api/sepaService'
 import { getDateRangeForPreset, getDateRangeForCustom } from '../utils/dateUtils'
 import { useHistoricalReadings } from './useHistoricalReadings'
 
@@ -44,6 +45,8 @@ export function useLatestReadings(timeRange: TimeRange, customRange?: DateRange)
   const eaResult = useQuery<Map<string, number>>({
     queryKey: ['readings', timeRange, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
     queryFn: async () => {
+      // Scotland (SEPA) only has a live 15-min feed here; it's best effort so England never waits on it failing.
+      const sepaLatest = timeRange === '15m' ? fetchSepaLatest().catch(() => new Map<string, number>()) : null
       let readings
       if (timeRange === 'custom' && customRange?.from && customRange?.to) {
         readings = await fetchReadings(getDateRangeForCustom(customRange.from, customRange.to))
@@ -60,6 +63,7 @@ export function useLatestReadings(timeRange: TimeRange, customRange?: DateRange)
         for (const r of readings) {
           readingsMap.set(r.stationRef, r.value)
         }
+        for (const [ref, mm] of await sepaLatest!) readingsMap.set(ref, mm)
         return readingsMap
       }
 

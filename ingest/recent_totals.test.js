@@ -1,6 +1,6 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
-const { stationRefFromMeasure, accumulate, computeRecentTotals } = require('./recent_totals');
+const { stationRefFromMeasure, accumulate, computeRecentTotals, sepaWindowTotals } = require('./recent_totals');
 
 const measure = (ref) =>
   `http://environment.data.gov.uk/flood-monitoring/id/measures/${ref}-rainfall-tipping_bucket_raingauge-t-15_min-mm`;
@@ -78,5 +78,27 @@ describe('computeRecentTotals', () => {
     const { windows } = await computeRecentTotals(NOW, flaky);
     assert.deepEqual(windows[0].totals, {});
     assert.ok(calls > 1);
+  });
+});
+
+describe('sepaWindowTotals', () => {
+  const now = Date.parse('2026-10-15T18:00:00Z');
+  const hour = (iso, mm) => [Date.parse(iso), mm];
+  const hourly = new Map([
+    ['sepa:1', [hour('2026-10-15T18:00:00Z', 1), hour('2026-10-15T13:00:00Z', 2), hour('2026-10-15T12:00:00Z', 4), hour('2026-10-14T19:00:00Z', 8), hour('2026-10-14T18:00:00Z', 16)]],
+    ['sepa:2', [hour('2026-10-14T20:00:00Z', 0.5)]],
+    ['sepa:3', []],
+  ]);
+  const out = sepaWindowTotals(hourly, now);
+
+  test('6h sums hours ending in (12:00, 18:00]; 24h sums hours ending in (yesterday 18:00, 18:00]', () => {
+    assert.equal(out[6]['sepa:1'], 3);
+    assert.equal(out[24]['sepa:1'], 15);
+  });
+
+  test('a gauge with no hour in a window is omitted from that window, not zero', () => {
+    assert.equal('sepa:2' in out[6], false);
+    assert.equal(out[24]['sepa:2'], 0.5);
+    assert.equal('sepa:3' in out[24], false);
   });
 });

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Source, Layer, useMap } from 'react-map-gl/maplibre'
 import type { MapMouseEvent } from 'maplibre-gl'
 import { useStations } from '../hooks/useStations'
-import { useEAAreas } from '../hooks/useEAAreas'
+import { NATIONS_WITH_DATA, useUkCountries } from '../hooks/useUkCountries'
+import { useFirstLabelLayerId } from '../hooks/useFirstLabelLayerId'
 import { computeField, removeOutliers, renderField, sampleField, SURFACE_COORDINATES } from '../utils/rainfallSurface'
 import { formatMm, type MapTheme, type RainfallScale } from '../utils/rainfallScale'
 
@@ -18,22 +19,18 @@ interface Hover {
   mm: number
 }
 
-function useFirstLabelLayerId(): string | undefined {
-  const { current: mapRef } = useMap()
-  const [id, setId] = useState<string>()
-  useEffect(() => {
-    if (!mapRef) return
-    const map = mapRef.getMap()
-    const find = () => setId(map.getStyle().layers.find((l) => l.type === 'symbol')?.id)
-    if (map.isStyleLoaded()) find()
-    else map.once('load', find)
-  }, [mapRef])
-  return id
-}
-
 export function RainfallSurface({ readingsMap, scale, theme }: Props) {
   const { data: stations } = useStations()
-  const { data: areas } = useEAAreas()
+  const { data: countries } = useUkCountries()
+  // Clip to the nations we have gauges for; the others are shaded "no data yet" by NoDataSource.
+  const areas = useMemo(
+    () =>
+      countries && {
+        ...countries,
+        features: countries.features.filter((f) => NATIONS_WITH_DATA.includes(f.properties?.name)),
+      },
+    [countries],
+  )
   const { current: mapRef } = useMap()
   const labelLayerId = useFirstLabelLayerId()
   // The image is tagged with the inputs it was drawn from, so a stale image

@@ -6,8 +6,12 @@ const EMPTY_GEOJSON = { type: 'FeatureCollection', features: [] }
 
 export const handlers = [
   http.get('/data/ea-areas.geojson', () => HttpResponse.json(EMPTY_GEOJSON)),
+  http.get('/data/uk-countries.geojson', () => HttpResponse.json(EMPTY_GEOJSON)),
 
   http.get('/api/rainfall-totals', () => HttpResponse.json({ totals: {} })),
+
+  // SEPA KiWIS (Scotland) — empty by default; tests override with server.use(...).
+  http.get('https://timeseries.sepa.org.uk/KiWIS/KiWIS', () => HttpResponse.json([])),
 
   // Supabase get_stations RPC (placeholder VITE_SUPABASE_URL from vitest.config.ts).
   http.post('http://localhost:54321/rest/v1/rpc/get_stations', () =>

@@ -6,6 +6,7 @@
 // regions rather than being blanked.
 
 const { createClient } = require('@supabase/supabase-js');
+const sepa = require('./providers/sepa');
 const path = require('path');
 
 require('dotenv').config({ path: path.join(__dirname, '.env') });
@@ -115,53 +116,106 @@ async function lastRefreshed(supabase, provider) {
   return data.length ? Date.parse(data[0].updated_at) : 0;
 }
 
-async function refreshStations({ force = false, fetchImpl = fetch, now = Date.now() } = {}) {
-  const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = process.env;
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY');
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+const SEPA_SILENT_AFTER_MS = 7 * 24 * 3600 * 1000;
 
-  if (!force && now - (await lastRefreshed(supabase, 'ea')) < REFRESH_EVERY_MS) {
-    return { skipped: true };
-  }
+/** SEPA gauges that reported within the last 7 days; others are left out. */
+function buildSepaRows(stations, latest, updatedAt, now) {
+  const fresh = new Set(latest.filter((x) => now - Date.parse(x.time) < SEPA_SILENT_AFTER_MS).map((x) => x.ref));
+  return stations
+    .filter((s) => fresh.has(s.ref))
+    .map((s) => ({
+      station_ref: s.ref,
+      provider: 'sepa',
+      nation: 'Scotland',
+      region: 'Scotland',
+      label: s.label,
+      lat: s.lat,
+      long: s.long,
+      grid_ref: null,
+      updated_at: updatedAt,
+    }));
+}
 
-  const [stations, areas] = await Promise.all([
-    fetchEaStations(fetchImpl),
-    fetchJson(fetchImpl, EA_AREAS_URL).then(parseAreas),
-  ]);
-  if (areas.length === 0) throw new Error('EA areas GeoJSON has no polygons — refusing to blank regions');
+const PROVIDERS = {
+  async ea({ fetchImpl, updatedAt }) {
+    const [stations, areas] = await Promise.all([
+      fetchEaStations(fetchImpl),
+      fetchJson(fetchImpl, EA_AREAS_URL).then(parseAreas),
+    ]);
+    if (areas.length === 0) throw new Error('EA areas GeoJSON has no polygons — refusing to blank regions');
+    return buildEaRows(stations, areas, updatedAt);
+  },
+  async sepa({ fetchImpl, updatedAt, now }) {
+    const [stations, latest] = await Promise.all([sepa.fetchStations(fetchImpl), sepa.fetchLatest(fetchImpl)]);
+    return buildSepaRows(stations, latest, updatedAt, now);
+  },
+};
 
-  const updatedAt = new Date(now).toISOString();
-  const rows = buildEaRows(stations, areas, updatedAt);
+async function writeProvider(supabase, provider, rows, updatedAt) {
   for (let i = 0; i < rows.length; i += UPSERT_BATCH) {
     const { error } = await supabase.from('stations').upsert(rows.slice(i, i + UPSERT_BATCH), { onConflict: 'station_ref' });
     if (error) throw new Error(`Supabase upsert to stations failed: ${error.message}`);
   }
-
-  // Gauges the EA no longer lists were not touched by this run.
-  const { error: delError, count } = await supabase
+  // Gauges this provider no longer lists were not touched by this run.
+  const { error, count } = await supabase
     .from('stations')
     .delete({ count: 'exact' })
-    .eq('provider', 'ea')
+    .eq('provider', provider)
     .lt('updated_at', updatedAt);
-  if (delError) throw new Error(`Supabase delete of retired stations failed: ${delError.message}`);
+  if (error) throw new Error(`Supabase delete of retired stations failed: ${error.message}`);
+  return count || 0;
+}
 
-  return { skipped: false, upserted: rows.length, withRegion: rows.filter((r) => r.region).length, removed: count || 0 };
+/**
+ * Refreshes each provider independently (each at most once per 24 h unless forced).
+ * Returns { [provider]: { skipped } | { upserted, withRegion, removed } | { error } }.
+ */
+async function refreshStations({ force = false, fetchImpl = fetch, now = Date.now(), providers = Object.keys(PROVIDERS) } = {}) {
+  const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = process.env;
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY');
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  const updatedAt = new Date(now).toISOString();
+
+  const results = {};
+  for (const provider of providers) {
+    try {
+      if (!force && now - (await lastRefreshed(supabase, provider)) < REFRESH_EVERY_MS) {
+        results[provider] = { skipped: true };
+        continue;
+      }
+      const rows = await PROVIDERS[provider]({ fetchImpl, updatedAt, now });
+      // An empty list is a broken upstream, not "all gauges retired" — don't wipe the table.
+      if (rows.length === 0) throw new Error('provider returned no stations');
+      const removed = await writeProvider(supabase, provider, rows, updatedAt);
+      results[provider] = { upserted: rows.length, withRegion: rows.filter((r) => r.region).length, removed };
+    } catch (err) {
+      results[provider] = { error: err.message };
+    }
+  }
+  return results;
+}
+
+/** One log line per provider, and whether any provider failed. */
+function describeStationResults(results) {
+  const lines = Object.entries(results).map(([p, r]) => {
+    if (r.error) return `✗ stations ${p}: ${r.error}`;
+    if (r.skipped) return `· stations ${p}: refreshed < 24 h ago — skipped`;
+    return `✓ stations ${p}: ${r.upserted} (${r.withRegion} with region), ${r.removed} retired`;
+  });
+  return { lines, failed: Object.values(results).some((r) => r.error) };
 }
 
 if (require.main === module) {
-  const t0 = Date.now();
   refreshStations({ force: process.argv.includes('--force') })
-    .then((r) =>
-      console.log(
-        r.skipped
-          ? '· stations refreshed < 24 h ago — skipped'
-          : `✓ stations: ${r.upserted} EA (${r.withRegion} with region), ${r.removed} retired, in ${((Date.now() - t0) / 1000).toFixed(1)}s`,
-      ),
-    )
+    .then((results) => {
+      const { lines, failed } = describeStationResults(results);
+      lines.forEach((l) => console.log(l));
+      if (failed) process.exit(1);
+    })
     .catch((err) => {
       console.error('Fatal:', err.message);
       process.exit(1);
     });
 }
 
-module.exports = { fetchEaStations, parseAreas, assignArea, buildEaRows, refreshStations };
+module.exports = { fetchEaStations, parseAreas, assignArea, buildEaRows, buildSepaRows, refreshStations, describeStationResults };

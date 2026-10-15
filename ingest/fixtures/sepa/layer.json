@@ -1,0 +1,56 @@
+[
+ {
+  "ts_id": 51551010,
+  "timestamp": "2026-10-15T19:45:00.000Z",
+  "req_timestamp": null,
+  "ts_value": 0.0,
+  "station_latitude": 57.16421784,
+  "station_longitude": -3.677609728,
+  "station_no": "115225"
+ },
+ {
+  "ts_id": 51737010,
+  "timestamp": "2026-10-15T19:45:00.000Z",
+  "req_timestamp": null,
+  "ts_value": 0.0,
+  "station_latitude": 57.59992025,
+  "station_longitude": -4.446997097,
+  "station_no": "115329"
+ },
+ {
+  "ts_id": 51608010,
+  "timestamp": "2026-10-15T19:45:00.000Z",
+  "req_timestamp": null,
+  "ts_value": 0.0,
+  "station_latitude": 57.40900118,
+  "station_longitude": -2.466784574,
+  "station_no": "115239"
+ },
+ {
+  "ts_id": 51728010,
+  "timestamp": "2026-10-15T19:45:00.000Z",
+  "req_timestamp": null,
+  "ts_value": 0.0,
+  "station_latitude": 58.36488646,
+  "station_longitude": -4.230503452,
+  "station_no": "115327"
+ },
+ {
+  "ts_id": 51551010,
+  "timestamp": "2026-10-15T19:45:00.000Z",
+  "req_timestamp": null,
+  "ts_value": null,
+  "station_latitude": 57.16421784,
+  "station_longitude": -3.677609728,
+  "station_no": "888888"
+ },
+ {
+  "ts_id": 51551010,
+  "timestamp": "2026-10-15T19:45:00.000Z",
+  "req_timestamp": null,
+  "ts_value": -1,
+  "station_latitude": 57.16421784,
+  "station_longitude": -3.677609728,
+  "station_no": "777777"
+ }
+]

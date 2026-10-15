@@ -8,7 +8,8 @@
   },
   "scripts": {
     "start": "node cron.js",
-    "test": "node --test ingest_archive.test.js recent_totals.test.js stations.test.js"
+    "test": "node --test ingest_archive.test.js recent_totals.test.js stations.test.js sepa_daily.test.js providers/sepa.test.js",
+    "test:smoke": "node --test providers/sepa.smoke.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

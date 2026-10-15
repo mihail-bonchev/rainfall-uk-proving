@@ -7,9 +7,9 @@ export interface RainPoint {
   mm: number
 }
 
-// England plus margin. The surface image is laid out in Web Mercator so it
-// lines up exactly with MapLibre's image source corners.
-export const SURFACE_BOUNDS = { west: -6.6, east: 2.0, south: 49.7, north: 56.0 }
+// Great Britain (Scilly → Shetland, St Kilda → East Anglia) plus margin. Laid out in Web
+// Mercator so it lines up exactly with MapLibre's image source corners.
+export const SURFACE_BOUNDS = { west: -8.8, east: 2.0, south: 49.7, north: 61.0 }
 
 const SIGMA_KM = 9
 const CUTOFF_KM = SIGMA_KM * 2.8
@@ -17,7 +17,8 @@ const CUTOFF_KM = SIGMA_KM * 2.8
 // near it, the Gaussian taper blends smoothly towards neighbours.
 const R0_KM = 4
 const KM_PER_DEG_LAT = 110.57
-const KM_PER_DEG_LON = 111.32 * Math.cos((53 * Math.PI) / 180)
+// Longitude degrees shrink with latitude (~67 km at 53°N, ~54 km at 61°N); use each point's own.
+const kmPerDegLon = (lat: number) => 111.32 * Math.cos((lat * Math.PI) / 180)
 
 const mercX = (lon: number) => (lon + 180) / 360
 const mercY = (lat: number) => {
@@ -51,7 +52,7 @@ const QC_RADIUS_KM = 25
  * downpours, which are legitimately local, survive.
  */
 export function removeOutliers(points: RainPoint[], scaleMax: number, scaleFloor: number): RainPoint[] {
-  const xy = points.map((p) => [p.lon * KM_PER_DEG_LON, p.lat * KM_PER_DEG_LAT])
+  const xy = points.map((p) => [p.lon * kmPerDegLon(p.lat), p.lat * KM_PER_DEG_LAT])
   const r2max = QC_RADIUS_KM * QC_RADIUS_KM
   return points.filter((p, i) => {
     const near: number[] = []
@@ -75,7 +76,8 @@ export function removeOutliers(points: RainPoint[], scaleMax: number, scaleFloor
  * Unlike a heatmap (which measures station *density*), every cell holds an
  * estimate of rainfall in mm, so neighbouring stations blend into one field.
  */
-export function computeField(points: RainPoint[], width = 300): SurfaceField {
+// ~0.029° of longitude per cell, as before the extension to Great Britain.
+export function computeField(points: RainPoint[], width = 376): SurfaceField {
   const height = Math.round((width * (MY1 - MY0)) / (MX1 - MX0))
   const num = new Float64Array(width * height)
   const den = new Float64Array(width * height)
@@ -84,7 +86,7 @@ export function computeField(points: RainPoint[], width = 300): SurfaceField {
   const bucket = new Map<string, { x: number; y: number; mm: number }[]>()
   const key = (bx: number, by: number) => `${bx},${by}`
   for (const p of points) {
-    const x = p.lon * KM_PER_DEG_LON
+    const x = p.lon * kmPerDegLon(p.lat)
     const y = p.lat * KM_PER_DEG_LAT
     const k = key(Math.floor(x / CUTOFF_KM), Math.floor(y / CUTOFF_KM))
     const list = bucket.get(k)
@@ -101,7 +103,7 @@ export function computeField(points: RainPoint[], width = 300): SurfaceField {
     const by = Math.floor(cy / CUTOFF_KM)
     for (let i = 0; i < width; i++) {
       const lon = (MX0 + ((i + 0.5) / width) * (MX1 - MX0)) * 360 - 180
-      const cx = lon * KM_PER_DEG_LON
+      const cx = lon * kmPerDegLon(lat)
       const bx = Math.floor(cx / CUTOFF_KM)
       let n = 0
       let d = 0
@@ -175,7 +177,7 @@ export function renderField(
   scale: RainfallScale,
   theme: MapTheme,
   clip: FeatureCollection | undefined,
-  upscale = 4,
+  upscale = 3,
 ): HTMLCanvasElement {
   const cw = field.width * upscale
   const ch = field.height * upscale

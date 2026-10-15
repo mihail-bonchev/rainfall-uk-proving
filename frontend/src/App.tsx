@@ -12,6 +12,7 @@ import { SyncStatus } from './components/SyncStatus'
 import { OfflineBanner } from './components/OfflineBanner'
 import { RainfallLegend } from './components/RainfallLegend'
 import { RainfallSurface } from './components/RainfallSurface'
+import { NoDataSource } from './components/NoDataSource'
 import { BasemapStyler } from './components/BasemapStyler'
 import { BASEMAP_STYLE } from './utils/basemap'
 import { getRainfallScale, type MapTheme } from './utils/rainfallScale'
@@ -20,7 +21,8 @@ import { useLatestReadings, useRecentTotalsWarmup } from './hooks/useLatestReadi
 import { downloadRegionalCsv } from './utils/csvExport'
 import type { TimeRange } from './types/api'
 
-const DEFAULT_VIEW = { longitude: -1.8, latitude: 53.0, zoom: 5.6 }
+// Fits Cornwall → Shetland on a desktop screen.
+const DEFAULT_VIEW = { longitude: -3.2, latitude: 55.4, zoom: 5.2 }
 
 function App() {
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null)
@@ -127,6 +129,7 @@ function App() {
         touchZoomRotate
       >
         <BasemapStyler theme={theme} />
+        <NoDataSource theme={theme} />
         <RainfallSurface readingsMap={readingsMap} scale={scale} theme={theme} />
         <StationsSource onStationClick={handleStationClick} readingsMap={readingsMap} scale={scale} theme={theme} />
         <EAAreasSource readingsMap={readingsMap} />

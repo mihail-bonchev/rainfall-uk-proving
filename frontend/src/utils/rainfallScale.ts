@@ -110,20 +110,23 @@ export function rainfallRgba(mm: number, scale: RainfallScale, theme: MapTheme):
   ]
 }
 
+export const NO_DATA_COLOUR: Record<MapTheme, string> = { bbc: '#6b7280', metoffice: '#9ca3af' }
+
+/** True when a station feature has a numeric `rainfall_mm` (false = no reading). */
+export const HAS_READING: ExpressionSpecification = ['==', ['typeof', ['get', 'rainfall_mm']], 'number']
+
 /** MapLibre colour expression for station dots, matching the surface colours. */
 export function stationColourExpression(scale: RainfallScale, theme: MapTheme): ExpressionSpecification {
   const value: ExpressionSpecification = ['get', 'rainfall_mm']
+  let withReading: ExpressionSpecification
   if (theme === 'metoffice') {
     const steps = scale.bounds.flatMap((b, i) => [b, METOFFICE_BANDS[i + 1]])
-    return ['step', value, METOFFICE_BANDS[0], ...steps] as ExpressionSpecification
+    withReading = ['step', value, METOFFICE_BANDS[0], ...steps] as ExpressionSpecification
+  } else {
+    const stops = edges(scale).flatMap((edge, i) => [edge, BBC_RAMP[i]])
+    withReading = ['case', ['<', value, scale.floor], '#46536f', ['interpolate', ['linear'], value, ...stops]] as ExpressionSpecification
   }
-  const stops = edges(scale).flatMap((edge, i) => [edge, BBC_RAMP[i]])
-  return [
-    'case',
-    ['<', value, scale.floor],
-    '#46536f',
-    ['interpolate', ['linear'], value, ...stops],
-  ] as ExpressionSpecification
+  return ['case', HAS_READING, withReading, NO_DATA_COLOUR[theme]]
 }
 
 export function formatMm(n: number): string {

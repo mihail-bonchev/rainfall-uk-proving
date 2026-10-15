@@ -13,7 +13,7 @@ Data source: [EA Flood Monitoring API](https://environment.data.gov.uk/flood-mon
 Epics 1–7 are complete and the app is deployed at [rain.xelantis.com](https://rain.xelantis.com).
 
 - **Epics 1–6** (Foundation, Stations, Zoom layers, Live data, Station panel, Short-term historical up to 28d via EA API) are complete.
-- **Epic 7** (Supabase + ingest pipeline) is live: `7d` and `28d` time ranges now query Supabase `station_daily_totals` directly. Supabase holds daily totals from early May 2026 onwards. The Railway cron job (`ingest/cron.js`) runs **every 15 minutes**: it refreshes 6h/24h per-station totals in `recent_totals` and fills any of the last 7 days missing from `station_daily_totals`. **EA publishes each day's archive ~22:20 UTC the following day**, so the newest available day is usually 2 days old — a 404 for a recent date is normal, not an error.
+- **Epic 7** (Supabase + ingest pipeline) is live: `7d` and `28d` time ranges now query Supabase `station_daily_totals` directly. Supabase holds daily totals from 23 March 2026 onwards (England; Scotland backfilled to the same date). The Railway cron job (`ingest/cron.js`) runs **every 15 minutes**: it refreshes 6h/24h per-station totals in `recent_totals` and fills any of the last 7 days missing from `station_daily_totals`. **EA publishes each day's archive ~22:20 UTC the following day**, so the newest available day is usually 2 days old — a 404 for a recent date is normal, not an error.
 - **Epic 8** (Period vs historic averages) is Phase 3 — not yet started.
 - `3 months` preset is live (#80). `1 year` needs a longer England backfill first (#81).
 
@@ -75,6 +75,9 @@ rainfall-uk-proving/
 ├── ingest/               # Railway Cron — daily EA archive → Supabase
 │   ├── cron.js           # Railway cron entry point (every 15 min): recent totals + archive gap fill + daily stations refresh
 │   ├── stations.js       # EA stations → Supabase stations (≤ once/24 h; EA area by point-in-polygon)
+│   ├── sepa_daily.js     # SEPA calendar-day totals → station_daily_totals (gap fill / --from --to backfill)
+│   ├── providers/sepa.js # SEPA KiWIS adapter (Scotland): stations, latest 15-min, hourly totals, calendar days
+│   ├── fixtures/sepa/    # Recorded (trimmed) KiWIS responses for unit tests
 │   ├── recent_totals.js  # 6h/24h per-station totals → Supabase recent_totals
 │   ├── recent_totals.sql # One-off table + RLS setup for recent_totals
 │   ├── stations.sql      # One-off stations table + get_stations() RPC
@@ -125,12 +128,15 @@ cp .env.example .env   # fill in SUPABASE_URL + SUPABASE_SERVICE_KEY
 node cron.js                        # what Railway runs: recent totals + archive gap fill
 node recent_totals.js               # refresh 6h/24h totals only
 node stations.js [--force]          # refresh the stations table (skips if < 24 h old unless --force)
+node sepa_daily.js                  # fill missing SEPA daily totals in the last 7 settled days
+node sepa_daily.js --from 2026-05-01 --to 2026-10-14   # SEPA backfill (31-day chunks, one KiWIS call each)
 node ingest_archive.js              # fill any gaps in the last 7 days (skips unpublished days)
 node ingest_archive.js --date 2026-05-01   # ingest a specific date
 node backfill.js --days 60          # backfill last 60 days
 node backfill.js --from 2026-01-01 --to 2026-05-01  # explicit range
 
 npm test                            # unit tests (node --test)
+npm run test:smoke                  # live SEPA KiWIS contract check (network)
 ```
 
 ## Testing
@@ -179,7 +185,7 @@ CREATE INDEX ON station_daily_totals (date);
 ```
 
 - Populated by `ingest_archive.js` — one row per station per day
-- Populated from early May 2026; grows by one day each morning (with a ~2-day publishing lag)
+- Populated from 23 March 2026 (England and Scotland); England grows by one day ~2 days late (EA archive lag), Scotland the next morning
 - Frontend queries via Supabase JS client with `anon` key (read-only RLS)
 
 ### Supabase / PostgREST gotchas — read before touching DB queries
@@ -190,8 +196,8 @@ PostgREST serialises PostgreSQL `NUMERIC`/`DECIMAL` as JSON strings, not numbers
 **2. PostgREST default row limit is 1,000.**
 A plain `.select()` on `station_daily_totals` for a 28-day window needs ~25,200 rows (900 stations × 28 days) but PostgREST silently returns only the first 1,000. Never query raw station-day rows from the frontend — use the RPC instead.
 
-**3. Use the `get_station_totals` RPC for 7d/28d aggregation.**
-The function runs `SELECT station_ref, SUM(total_mm) … GROUP BY station_ref` server-side and returns ~900 rows (one per station), well within any limit. It lives in `useHistoricalReadings.ts` as `supabase.rpc('get_station_totals', { p_start, p_end })`.
+**3. Use the `get_station_totals` RPC for 7d/28d/3m aggregation — and page it.**
+The function runs `SELECT station_ref, SUM(total_mm) … GROUP BY station_ref` server-side and returns one row per station. **With Scotland that is ~1,210 rows — over the 1,000 cap, which applies to RPC results too** (an unpaged call silently returned exactly 1,000). `useHistoricalReadings.ts` pages it: `.rpc('get_station_totals', …).order('station_ref').range(from, from + 999)` until a short page. Prefer RPCs that return one JSON value (like `get_stations`) for anything new.
 
 ```sql
 -- Definition (already created in Supabase):
@@ -209,22 +215,23 @@ $$;
 
 ## Map Architecture (Frontend)
 
-- **Rainfall surface** (`RainfallSurface.tsx` + `utils/rainfallSurface.ts`): station totals are interpolated client-side onto a Web-Mercator grid (Gaussian-tapered inverse-distance weights, ~9 km σ, 25 km cutoff), painted to a canvas, clipped to the EA areas polygon (England coastline) and shown as a MapLibre `image` source **below the basemap labels**. Coverage fades out where no station is near. A neighbour "buddy check" (`removeOutliers`) drops stuck/zero gauges from the surface so they don't paint bullseyes. Hover shows the interpolated mm.
+- **Rainfall surface** (`RainfallSurface.tsx` + `utils/rainfallSurface.ts`): station totals are interpolated client-side onto a Web-Mercator grid covering Great Britain (`SURFACE_BOUNDS` −8.8…2.0°E, 49.7…61.0°N; 376-cell width, drawn at 3×; Gaussian-tapered inverse-distance weights, ~9 km σ, 25 km cutoff, distances use each point's own latitude), painted to a canvas, clipped to the nations with data (`NATIONS_WITH_DATA` = England, Scotland) from `public/data/uk-countries.geojson` (ONS Countries Dec 2023 BUC, OGL — attribution shown on the map) and shown as a MapLibre `image` source **below the basemap labels**. `NoDataSource.tsx` shades the other nations (Wales, NI) grey so they never read as dry; the legend says "No data yet". Gauges with no reading are faded grey dots; areas with no reporting gauge are left out of the regional summary. Coverage fades out where no station is near. A neighbour "buddy check" (`removeOutliers`) drops stuck/zero gauges from the surface so they don't paint bullseyes. Hover shows the interpolated mm.
 - **Do not use MapLibre `heatmap` layers for rainfall** — they visualise station *density*, not rainfall amount (that was the cause of the old "England glows green" problem).
 - **Station dots** (zoom 7+): clickable, coloured on the same scale → shadcn Sheet panel.
 - **Themes**: `bbc` (dark; continuous ramp deep blue → bright blue → cyan → green/yellow, brighter = wetter, interpolated in log space between the same band edges as Met Office so small totals keep contrast) and `metoffice` (light, 8 radar bands). Dry (< `floor`) is transparent in both. A linear 0..max BBC ramp was tried and rejected — everything landed in its palest sliver. `MapGL` is remounted (`key={theme}`) on toggle; the view is preserved.
-- Zoom limited to 4.5–11.
+- Default view fits Cornwall → Shetland (`DEFAULT_VIEW` in `App.tsx`). Zoom limited to 4.5–11.
 
 Table: `stations` (created by `ingest/stations.sql`, issue #77)
 
 - One row per rain gauge from every provider: `station_ref` (PK — EA refs bare to match `station_daily_totals`; others prefixed, e.g. `sepa:14897`), `provider`, `nation`, `region`, `label`, `lat`, `long`, `grid_ref`, `updated_at`
 - Read via `supabase.rpc('get_stations')`, which returns **one JSON array** — safe past PostgREST's 1,000-row cap (verified with 1,100 rows)
 - anon: SELECT only (writes rejected with 42501); cron writes with the service key
-- Refreshed by `ingest/stations.js` at most once a day: ~1,039 EA gauges; `region` = EA area via point-in-polygon against the site's `/data/ea-areas.geojson`. EA gauges outside every EA area (7, upper Severn/Wye) get `nation = 'Wales'`, `region = NULL`. Gauges the EA stops listing are deleted.
+- Refreshed by `ingest/stations.js` per provider, each at most once a day (a provider returning 0 stations is treated as an error, never a wipe). SEPA: ~283 gauges that reported in the last 7 days, `nation = region = 'Scotland'`. EA: ~1,039 gauges; `region` = EA area via point-in-polygon against the site's `/data/ea-areas.geojson`. EA gauges outside every EA area (7, upper Severn/Wye) get `nation = 'Wales'`, `region = NULL`. Gauges the EA stops listing are deleted.
 
 Table: `recent_totals` (created by `ingest/recent_totals.sql`)
 
-- Two rows: `hours` = 6 and 24, each with `computed_at`, `station_count` and `totals` (JSONB `{ station_ref: mm }`)
+- Two rows: `hours` = 6 and 24, each with `computed_at`, `station_count` and `totals` (JSONB `{ station_ref: mm }`) — EA refs bare, Scottish refs `sepa:…`
+- EA is required (if it fails nothing is written). SEPA is best effort: on failure the previous `sepa:*` values are carried over and the run exits 1. SEPA windows are whole hours (hourly totals ending in the window), EA's are 15-min steps.
 - One row per window keeps the read to a single row — no PostgREST 1,000-row limit
 - anon has SELECT via RLS policy; cron writes with the service key
 
@@ -238,7 +245,7 @@ Table: `recent_totals` (created by `ingest/recent_totals.sql`)
 
 | Range | Source | Status |
 |---|---|---|
-| 15m | EA API `?latest` | Live |
+| 15m | EA API `?latest` + SEPA KiWIS value layer (browser, best effort, values ≤ 2 h old) | Live |
 | 6h, 24h | Supabase `recent_totals` (refreshed every 15 min by cron); falls back to Vercel Function `/api/rainfall-totals` if missing or >1 h old | Live |
 | 7d, 28d, 3m | Supabase `station_daily_totals` via `get_station_totals` (3m = 90 days; station panel shows weekly bars) | Live |
 | custom | EA API `startdate`/`enddate` (≤28d) | Live |
@@ -266,6 +273,14 @@ Single source of truth for surface, station dots and legend. Per time range: `fl
 - In `npm run dev`, Vite proxies `/api` to the production site (Vite can't run Vercel functions); use `vercel dev` to run the function locally.
 - The station panel fetches the clicked station's own readings from the EA (`fetchStationReadings`) for live ranges.
 - **Stations load from Supabase** (`fetchStationsFromSupabase` → `get_stations` RPC, one call, EA areas pre-assigned) and are cached in IndexedDB for 24 h (`stationsLastFetched_v4`). If Supabase fails or is empty, `stationStore` falls back to paging the EA API + browser-side area assignment (slow). The EA `/id/stations` endpoint no longer returns `meta.totalCount`; both the fallback and `ingest/stations.js` page until a page adds nothing new.
+
+## SEPA (Scotland) — KiWIS
+
+- Base: `https://timeseries.sepa.org.uk/KiWIS/KiWIS?service=kisters&type=queryServices&datasource=0&format=json` — no key, OGL ("Contains SEPA data © SEPA"), CORS `*`. The legacy `www2.sepa.org.uk/rainfall/api` is **retired**.
+- Every call covers all ~300 gauges: `getTimeseriesList` (stations), `getTimeseriesValueLayer` (latest 15-min), `getTimeseriesValues&ts_path=1/*/RE/Hour.Total` (hourly; add `metadata=true&md_returnfields=station_no`).
+- **Timestamps mark the END of the interval** (Hour.Total stamped 23:00 = 22:00–23:00), like EA readings. Calendar day D = hours ending in (D 00:00, D+1 00:00]. Don't use `HDay.Total` (09:00–09:00 hydrological day).
+- Station refs are `sepa:<station_no>`.
+- Daily totals (`sepa_daily.js`): day D written once D+1 is 2 h old; a gauge needs ≥ 20 hourly values that day or it's left out (no data, not a low total). `reading_count` = hours.
 
 ## EA Areas (14 — `eaAreaName` field, NOT deprecated `eaRegionName`)
 

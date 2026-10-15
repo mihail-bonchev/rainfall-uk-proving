@@ -16,7 +16,8 @@ export function toGeoJSON(
         id: s.id,
         label: s.label,
         eaAreaName: s.eaAreaName,
-        rainfall_mm: readingsMap.get(s.id) ?? 0,
+        // null = no reading (offline gauge, or a provider not ingested yet) — never shown as dry.
+        rainfall_mm: readingsMap.get(s.id) ?? null,
       },
     })),
   }

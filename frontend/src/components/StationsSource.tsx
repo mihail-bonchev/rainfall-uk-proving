@@ -3,7 +3,7 @@ import { Source, Layer, Popup, useMap, type LayerProps } from 'react-map-gl/mapl
 import type { MapLayerMouseEvent } from 'maplibre-gl'
 import type { Point } from 'geojson'
 import { useStations, toGeoJSON } from '../hooks/useStations'
-import { getRainfallScale, stationColourExpression, type MapTheme, type RainfallScale } from '../utils/rainfallScale'
+import { getRainfallScale, HAS_READING, stationColourExpression, type MapTheme, type RainfallScale } from '../utils/rainfallScale'
 
 // Small clickable dots on top of the rainfall surface, coloured on the same scale.
 function makeStationCircleLayer(scale: RainfallScale, theme: MapTheme): LayerProps {
@@ -14,7 +14,8 @@ function makeStationCircleLayer(scale: RainfallScale, theme: MapTheme): LayerPro
     paint: {
       'circle-color': stationColourExpression(scale, theme),
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 7, 2, 9, 4, 11, 6],
-      'circle-opacity': ['interpolate', ['linear'], ['zoom'], 7, 0, 8, 1],
+      // Gauges with no reading are drawn faded so they don't read as dry.
+      'circle-opacity': ['interpolate', ['linear'], ['zoom'], 7, 0, 8, ['case', HAS_READING, 1, 0.45]],
       'circle-stroke-width': 1,
       'circle-stroke-color': theme === 'bbc' ? '#0b1220' : '#ffffff',
       'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 7, 0, 8, 0.9],

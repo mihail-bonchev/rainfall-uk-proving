@@ -14,8 +14,8 @@ const stations: Station[] = [
 ]
 
 describe('aggregateByArea', () => {
-  it('returns an AreaSummary for each area represented in stations', () => {
-    const result = aggregateByArea(new Map(), stations)
+  it('returns an AreaSummary for each area with at least one reporting station', () => {
+    const result = aggregateByArea(new Map([['E0001', 1], ['E0003', 2]]), stations)
     expect(result.map((a) => a.areaName).sort()).toEqual(['Thames', 'Yorkshire'])
   })
 
@@ -53,20 +53,22 @@ describe('aggregateByArea', () => {
     expect(test.maxMm).toBe(500)
   })
 
-  it('handles stations with no data — stationsWithData is 0, avgMm is 0', () => {
-    const result = aggregateByArea(new Map(), stations)
-    const thames = result.find((a) => a.areaName === 'Thames')!
-    expect(thames.stationsWithData).toBe(0)
-    expect(thames.avgMm).toBe(0)
-    expect(thames.maxMm).toBe(0)
+  it('omits areas where no station reported, rather than showing 0 mm', () => {
+    const result = aggregateByArea(new Map([['E0003', 4]]), stations)
+    expect(result.map((a) => a.areaName)).toEqual(['Yorkshire'])
+  })
+
+  it('skips stations that are outside every area', () => {
+    const withBorderGauge = [...stations, makeStation('1221', '')]
+    const result = aggregateByArea(new Map([['E0001', 1], ['1221', 9]]), withBorderGauge)
+    expect(result.map((a) => a.areaName)).toEqual(['Thames'])
   })
 
   it('ignores readingsMap entries for unknown stationRefs', () => {
-    const map = new Map([['UNKNOWN', 999]])
+    const map = new Map([['UNKNOWN', 999], ['E0001', 3]])
     const result = aggregateByArea(map, stations)
-    result.forEach((a) => {
-      expect(a.stationsWithData).toBe(0)
-    })
+    expect(result).toHaveLength(1)
+    expect(result[0].avgMm).toBe(3)
   })
 
   it('groups by eaAreaName correctly across all 14 EA areas', () => {
@@ -78,7 +80,7 @@ describe('aggregateByArea', () => {
       'North East', 'East Anglia', 'West Midlands',
     ]
     const manyStations = areaNames.map((area, i) => makeStation(`E${i}`, area))
-    const result = aggregateByArea(new Map(), manyStations)
+    const result = aggregateByArea(new Map(manyStations.map((st) => [st.id, 1])), manyStations)
     expect(result).toHaveLength(14)
     expect(result.map((a) => a.areaName).sort()).toEqual([...areaNames].sort())
   })

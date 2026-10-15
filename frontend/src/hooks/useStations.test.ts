@@ -52,7 +52,7 @@ describe('toGeoJSON', () => {
       id: 'E0001',
       label: 'Station 1',
       eaAreaName: 'Thames',
-      rainfall_mm: 0,
+      rainfall_mm: null,
     })
   })
 
@@ -60,7 +60,7 @@ describe('toGeoJSON', () => {
     const readingsMap = new Map([['E0001', 3.7]])
     const fc = toGeoJSON(MOCK_STATIONS, readingsMap)
     expect(fc.features[0].properties!.rainfall_mm).toBeCloseTo(3.7)
-    expect(fc.features[1].properties!.rainfall_mm).toBe(0)
+    expect(fc.features[1].properties!.rainfall_mm).toBeNull()
   })
 
   it('coordinates are [longitude, latitude]', () => {

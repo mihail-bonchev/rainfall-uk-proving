@@ -1,6 +1,6 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
-const { fetchEaStations, parseAreas, assignArea, buildEaRows } = require('./stations');
+const { fetchEaStations, parseAreas, assignArea, buildEaRows, buildSepaRows, describeStationResults } = require('./stations');
 
 const station = (ref, lat = 52, long = -1) => ({ stationReference: ref, label: `Gauge ${ref}`, lat, long, gridReference: 'SP000000' });
 const square = (x0, y0, x1, y1) => [[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]];
@@ -66,5 +66,43 @@ describe('buildEaRows', () => {
     const [row] = buildEaRows([station('1221', 52.657, -3.132)], areas, '2026-10-15T00:00:00.000Z');
     assert.equal(row.region, null);
     assert.equal(row.nation, 'Wales');
+  });
+});
+
+describe('buildSepaRows', () => {
+  const now = Date.parse('2026-10-15T12:00:00Z');
+  const stations = [
+    { ref: 'sepa:1', stationNo: '1', label: 'Live gauge', lat: 57, long: -4 },
+    { ref: 'sepa:2', stationNo: '2', label: 'Silent gauge', lat: 56, long: -3 },
+    { ref: 'sepa:3', stationNo: '3', label: 'Never reported', lat: 55.5, long: -3.5 },
+  ];
+  const latest = [
+    { ref: 'sepa:1', time: '2026-10-15T11:45:00Z', value: 0 },
+    { ref: 'sepa:2', time: '2026-10-01T00:00:00Z', value: 0.2 },
+  ];
+
+  test('keeps only gauges that reported in the last 7 days, as Scotland', () => {
+    const rows = buildSepaRows(stations, latest, '2026-10-15T12:00:00.000Z', now);
+    assert.deepEqual(rows, [{
+      station_ref: 'sepa:1', provider: 'sepa', nation: 'Scotland', region: 'Scotland', label: 'Live gauge',
+      lat: 57, long: -4, grid_ref: null, updated_at: '2026-10-15T12:00:00.000Z',
+    }]);
+  });
+});
+
+describe('describeStationResults', () => {
+  test('one line per provider; any error marks the run failed', () => {
+    const { lines, failed } = describeStationResults({
+      ea: { skipped: true },
+      sepa: { error: 'SEPA KiWIS HTTP 503' },
+    });
+    assert.equal(lines.length, 2);
+    assert.match(lines[0], /ea: refreshed < 24 h ago/);
+    assert.match(lines[1], /✗ stations sepa: SEPA KiWIS HTTP 503/);
+    assert.equal(failed, true);
+  });
+
+  test('not failed when every provider succeeded or skipped', () => {
+    assert.equal(describeStationResults({ ea: { upserted: 1, withRegion: 1, removed: 0 }, sepa: { skipped: true } }).failed, false);
   });
 });

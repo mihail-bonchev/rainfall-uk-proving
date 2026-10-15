@@ -17,6 +17,8 @@ export function aggregateByArea(
   const areas = new Map<string, { stationCount: number; cappedTotals: number[] }>()
 
   for (const station of stations) {
+    // Gauges outside every area (e.g. EA gauges over the Welsh border) have no row.
+    if (!station.eaAreaName) continue
     if (!areas.has(station.eaAreaName)) {
       areas.set(station.eaAreaName, { stationCount: 0, cappedTotals: [] })
     }
@@ -27,7 +29,9 @@ export function aggregateByArea(
     }
   }
 
+  // Areas where no gauge reported (e.g. a provider not ingested yet) are omitted, not shown as 0 mm.
   return [...areas.entries()]
+    .filter(([, { cappedTotals }]) => cappedTotals.length > 0)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([areaName, { stationCount, cappedTotals }]) => {
       const stationsWithData = cappedTotals.length
