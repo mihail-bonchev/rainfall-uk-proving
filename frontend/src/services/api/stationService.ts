@@ -1,3 +1,5 @@
+import { supabase } from '../db/supabaseClient'
+
 const EA_BASE = 'https://environment.data.gov.uk/flood-monitoring'
 const PAGE_SIZE = 500
 
@@ -8,6 +10,7 @@ export interface Station {
   long: number
   eaAreaName: string
   gridReference: string
+  nation?: string
 }
 
 export class StationFetchError extends Error {
@@ -69,4 +72,35 @@ export async function fetchAllStations(): Promise<Station[]> {
     if (items.length === 0 || byId.size === before) break
   }
   return [...byId.values()]
+}
+
+interface StationRow {
+  station_ref: string
+  label: string
+  lat: number
+  long: number
+  region: string | null
+  nation: string
+  grid_ref: string | null
+}
+
+/**
+ * All stations in one call from the Supabase `stations` table (refreshed daily
+ * by the ingest cron, EA areas already assigned). Throws on error or an empty
+ * table so callers can fall back to the EA API.
+ */
+export async function fetchStationsFromSupabase(): Promise<Station[]> {
+  const { data, error } = await supabase.rpc('get_stations')
+  if (error) throw new Error(`get_stations failed: ${error.message}`)
+  const rows = (data ?? []) as StationRow[]
+  if (rows.length === 0) throw new Error('get_stations returned no stations')
+  return rows.map((r) => ({
+    id: r.station_ref,
+    label: r.label,
+    lat: Number(r.lat),
+    long: Number(r.long),
+    eaAreaName: r.region ?? '',
+    gridReference: r.grid_ref ?? '',
+    nation: r.nation,
+  }))
 }

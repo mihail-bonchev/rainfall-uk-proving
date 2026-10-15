@@ -264,7 +264,7 @@ Single source of truth for surface, station dots and legend. Per time range: `fl
 - **Custom ranges** still use the old in-browser bulk fetch and are under-sampled (~130 stations).
 - In `npm run dev`, Vite proxies `/api` to the production site (Vite can't run Vercel functions); use `vercel dev` to run the function locally.
 - The station panel fetches the clicked station's own readings from the EA (`fetchStationReadings`) for live ranges.
-- The EA `/id/stations` endpoint no longer returns `meta.totalCount`; `fetchAllStations` pages until a page adds nothing new (~1,040 stations).
+- **Stations load from Supabase** (`fetchStationsFromSupabase` → `get_stations` RPC, one call, EA areas pre-assigned) and are cached in IndexedDB for 24 h (`stationsLastFetched_v4`). If Supabase fails or is empty, `stationStore` falls back to paging the EA API + browser-side area assignment (slow). The EA `/id/stations` endpoint no longer returns `meta.totalCount`; both the fallback and `ingest/stations.js` page until a page adds nothing new.
 
 ## EA Areas (14 — `eaAreaName` field, NOT deprecated `eaRegionName`)
 

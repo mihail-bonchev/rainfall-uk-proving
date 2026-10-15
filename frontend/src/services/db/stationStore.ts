@@ -1,12 +1,13 @@
 import { getDb } from './dbInit'
-import { fetchAllStations, type Station } from '../api/stationService'
+import { fetchAllStations, fetchStationsFromSupabase, type Station } from '../api/stationService'
 import type { FeatureCollection, Polygon, MultiPolygon } from 'geojson'
 
 export type { Station }
 
-// Bumped to v3: earlier caches hold only the first ~500 stations.
-const CACHE_KEY = 'stationsLastFetched_v3'
-const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
+// v4: stations now come from Supabase (with `nation`); older caches came from the EA API.
+const CACHE_KEY = 'stationsLastFetched_v4'
+// A day, not a week: the Supabase call is cheap and new providers (e.g. SEPA) should appear promptly.
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000
 
 async function isCacheFresh(db: Awaited<ReturnType<typeof getDb>>): Promise<boolean> {
   const meta = await db.get('syncMetadata', CACHE_KEY)
@@ -103,8 +104,11 @@ export async function getStations(): Promise<Station[]> {
     return db.getAll('stations')
   }
 
-  const rawStations = await fetchAllStations()
-  const stations = await enrichWithAreaNames(rawStations)
+  const stations = await fetchStationsFromSupabase().catch(async () => {
+    // Fallback: page the EA API and assign EA areas in the browser (slow, ~15–30 s).
+    const raw = await fetchAllStations()
+    return enrichWithAreaNames(raw.map((s) => ({ ...s, nation: 'England' })))
+  })
 
   const tx = db.transaction(['stations', 'syncMetadata'], 'readwrite')
   await tx.objectStore('stations').clear()

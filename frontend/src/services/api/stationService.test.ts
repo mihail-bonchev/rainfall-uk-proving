@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../test/msw/server'
-import { fetchAllStations, StationFetchError } from './stationService'
+import { fetchAllStations, fetchStationsFromSupabase, StationFetchError } from './stationService'
 
 const EA_BASE = 'https://environment.data.gov.uk/flood-monitoring'
 
@@ -102,5 +102,36 @@ describe('fetchAllStations', () => {
     const [station] = await fetchAllStations()
     expect(station.eaAreaName).toBe('')
     expect(station.gridReference).toBe('')
+  })
+})
+
+describe('fetchStationsFromSupabase', () => {
+  // Matches the placeholder VITE_SUPABASE_URL set in vitest.config.ts.
+  const RPC_URL = 'http://localhost:54321/rest/v1/rpc/get_stations'
+
+  it('maps get_stations rows to Station objects', async () => {
+    server.use(
+      http.post(RPC_URL, () =>
+        HttpResponse.json([
+          { station_ref: 'E1', provider: 'ea', nation: 'England', region: 'Thames', label: 'Gauge 1', lat: 51.5, long: -0.1, grid_ref: 'TQ1' },
+          { station_ref: '1221', provider: 'ea', nation: 'Wales', region: null, label: 'Gauge 2', lat: 52.6, long: -3.1, grid_ref: null },
+        ]),
+      ),
+    )
+    const stations = await fetchStationsFromSupabase()
+    expect(stations).toEqual([
+      { id: 'E1', label: 'Gauge 1', lat: 51.5, long: -0.1, eaAreaName: 'Thames', gridReference: 'TQ1', nation: 'England' },
+      { id: '1221', label: 'Gauge 2', lat: 52.6, long: -3.1, eaAreaName: '', gridReference: '', nation: 'Wales' },
+    ])
+  })
+
+  it('throws when Supabase errors', async () => {
+    server.use(http.post(RPC_URL, () => HttpResponse.json({ message: 'boom' }, { status: 500 })))
+    await expect(fetchStationsFromSupabase()).rejects.toThrow(/get_stations failed/)
+  })
+
+  it('throws on an empty table so callers fall back to the EA API', async () => {
+    server.use(http.post(RPC_URL, () => HttpResponse.json([])))
+    await expect(fetchStationsFromSupabase()).rejects.toThrow(/no stations/)
   })
 })

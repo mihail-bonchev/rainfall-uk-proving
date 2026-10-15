@@ -9,6 +9,13 @@ export const handlers = [
 
   http.get('/api/rainfall-totals', () => HttpResponse.json({ totals: {} })),
 
+  // Supabase get_stations RPC (placeholder VITE_SUPABASE_URL from vitest.config.ts).
+  http.post('http://localhost:54321/rest/v1/rpc/get_stations', () =>
+    HttpResponse.json([
+      { station_ref: 'E0001', provider: 'ea', nation: 'England', region: 'Thames', label: 'Test Station', lat: 51.5, long: -0.1, grid_ref: 'TQ123456' },
+    ]),
+  ),
+
   http.get(`${EA_BASE}/id/stations`, () => {
     return HttpResponse.json({
       meta: { totalCount: 1027 },
