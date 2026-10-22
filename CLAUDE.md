@@ -13,7 +13,7 @@ Data source: [EA Flood Monitoring API](https://environment.data.gov.uk/flood-mon
 Epics 1–7 are complete and the app is deployed at [rain.xelantis.com](https://rain.xelantis.com).
 
 - **Epics 1–6** (Foundation, Stations, Zoom layers, Live data, Station panel, Short-term historical up to 28d via EA API) are complete.
-- **Epic 7** (Supabase + ingest pipeline) is live: `7d` and `28d` time ranges now query Supabase `station_daily_totals` directly. Supabase holds daily totals from 23 March 2026 onwards (England; Scotland backfilled to the same date). The Railway cron job (`ingest/cron.js`) runs **every 15 minutes**: it refreshes 6h/24h per-station totals in `recent_totals` and fills any of the last 7 days missing from `station_daily_totals`. **EA publishes each day's archive ~22:20 UTC the following day**, so the newest available day is usually 2 days old — a 404 for a recent date is normal, not an error.
+- **Epic 7** (Supabase + ingest pipeline) is live: `7d` and `28d` time ranges now query Supabase `station_daily_totals` directly. Supabase holds daily totals from 29 Oct 2025 onwards for England and Scotland (the EA archive keeps only ~1 year). The Railway cron job (`ingest/cron.js`) runs **every 15 minutes**: it refreshes 6h/24h per-station totals in `recent_totals` and fills any of the last 7 days missing from `station_daily_totals`. **EA publishes each day's archive ~22:20 UTC the following day**, so the newest available day is usually 2 days old — a 404 for a recent date is normal, not an error.
 - **Epic 8** (Period vs historic averages) is Phase 3 — not yet started.
 - `3 months` preset is live (#80). `1 year` needs a longer England backfill first (#81).
 
@@ -165,7 +165,7 @@ Full strategy in [spec/testing-strategy.md](spec/testing-strategy.md). Summary:
 - Data freshness: every **15 minutes** per station
 - ~1,000 active UK rainfall stations
 - No regional aggregation endpoints — aggregate client-side
-- Archive: daily CSVs at `/archive/readings-full-YYYY-MM-DD.csv`
+- Archive: daily CSVs at `/archive/readings-full-YYYY-MM-DD.csv` (~146 MB each). **Rolling window of roughly one year** — on 18 Oct 2026 the earliest file was 2025-10-29 (2026-01-28 missing). A day not ingested before it ages out is **lost for good**, so never let the cron be down for long.
 - **`?since=` is NOT supported on `/data/readings` bulk endpoint** — use `startdate`/`enddate` instead
 - Station metadata stable — cache indefinitely
 
@@ -185,7 +185,8 @@ CREATE INDEX ON station_daily_totals (date);
 ```
 
 - Populated by `ingest_archive.js` — one row per station per day
-- Populated from 23 March 2026 (England and Scotland); England grows by one day ~2 days late (EA archive lag), Scotland the next morning
+- Populated from **29 Oct 2025** (England and Scotland; earliest EA archive available, backfilled in #81; 2026-01-28 missing for England); England grows by one day ~2 days late (EA archive lag), Scotland the next morning
+- England and Scotland share this table: gap checks must filter by provider (`ingest_archive.js` counts only non-`sepa:` rows — counting all rows made the EA step skip days once SEPA rows landed first)
 - Frontend queries via Supabase JS client with `anon` key (read-only RLS)
 
 ### Supabase / PostgREST gotchas — read before touching DB queries

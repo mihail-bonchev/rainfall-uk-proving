@@ -71,10 +71,13 @@ function lookbackDates(days, now = new Date()) {
 async function findMissingDates(supabase, dates) {
   const missing = [];
   for (const date of dates) {
+    // Count EA rows only: SEPA (Scotland) daily totals share this table and land
+    // days before the EA archive, so counting all rows would mark the day done.
     const { count, error } = await supabase
       .from('station_daily_totals')
       .select('*', { count: 'exact', head: true })
-      .eq('date', date);
+      .eq('date', date)
+      .not('station_ref', 'like', 'sepa:%');
     if (error) throw new Error(`Supabase count failed for ${date}: ${error.message}`);
     if (!count) missing.push(date);
   }
