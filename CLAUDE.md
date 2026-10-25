@@ -298,7 +298,7 @@ See `spec/implementation-plan.md` for full download URL.
 | Layer | Platform | Notes |
 |---|---|---|
 | Frontend | Vercel | Domain: `rain.xelantis.com`; **manual deploy — git push does NOT auto-deploy** |
-| Ingest cron | Railway | Cron Job `*/15 * * * *`; runs `node cron.js` (from `ingest/railway.toml`) |
+| Ingest cron | Railway | Cron Job `*/15 * * * *`; runs `npm start` → `node cron.js` (start command + builder set in the Railway dashboard; Config as Code `railway.toml` removed — deprecated, unsupported after 2026-12-01) |
 | Database | Supabase | PostgreSQL; anon key for reads, service key for cron writes |
 
 ### Deploying the frontend
