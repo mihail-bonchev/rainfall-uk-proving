@@ -41,7 +41,7 @@ See [spec/implementation-plan.md](spec/implementation-plan.md) for the full epic
 | Runtime | Node.js | `ingest_archive.js` — CommonJS |
 | DB client | `@supabase/supabase-js` | Service role key for writes |
 | CSV parsing | `csv-parse` | |
-| Schedule | Railway Cron Job | `*/15 * * * *` → `node cron.js`; Node >=20 (`engines` in package.json) |
+| Schedule | Railway Cron Job | `*/15 * * * *` → `node cron.js`; Node 22.x pinned in `engines` (supabase-js needs native WebSocket, Node ≥ 22; Railpack picks the lowest version a range allows, so `>=20` gave Node 20 and crashed) |
 
 ## Repository Structure
 

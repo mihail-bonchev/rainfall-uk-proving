@@ -4,7 +4,7 @@
   "description": "EA rainfall ingest to Supabase: recent 6h/24h totals + daily archive",
   "main": "ingest_archive.js",
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "scripts": {
     "start": "node cron.js",
